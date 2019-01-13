@@ -13,6 +13,6 @@
 ## 3. Tabelle
   * Die Punkte ergeben sich aus dem Verhältnis aus dem dreifachen der Anzahl der Siege und der Anzahl der Spiele.
   ```WINS * 3 / GAMES```
-  * Wenn ein Spieler oder eine Spielerin weniger als die Hälfte der Anzahl der Spiele desc Spielers oder der Spielerin mit den meisten Spielen hat, werden die Siege im Verhältnis zur Hälfte der Spiele dieses Spielers oder dieser Spielerin gewertet.
+  * Wenn ein Spieler oder eine Spielerin weniger als die Hälfte der Anzahl der Spiele des Spielers oder der Spielerin mit den meisten Spielen hat, werden die Siege im Verhältnis zur Hälfte der Spiele dieses Spielers oder dieser Spielerin gewertet.
  ```WINS * 3 / MAX(GAMES, (MAX_PLAYER_GAMES / 2))```
 
