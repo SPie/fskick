@@ -1,0 +1,26 @@
+html {
+	background-color: black;
+	color: #cccccc;
+}
+
+table, th {
+	border-width: 0.1rem;
+	border-style: dashed;
+	border-color: #cccccc;
+	border-collapse: collapse;
+	padding: 1rem;
+}
+
+td {
+	border-width: 0.1rem;
+	border-top: 0;
+	border-bottom: 0;
+	border-style: dashed;
+	border-color: #cccccc;
+	border-collapse: collapse;
+	padding: 0 0.9rem 0 1rem;
+}
+
+th {
+	color: #aaff44;
+}
