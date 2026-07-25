@@ -77,7 +77,8 @@ defmodule Fskick.MixProject do
       {:commanded_ecto_projections, "~> 1.4"},
       {:eventstore, "~> 1.4"},
       {:table_rex, "~> 4.1"},
-      {:exqlite, "~> 0.27"}
+      {:exqlite, "~> 0.27"},
+      {:argon2_elixir, "~> 4.0"}
     ]
   end
 

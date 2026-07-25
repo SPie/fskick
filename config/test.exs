@@ -33,6 +33,9 @@ config :fskick, Fskick.App,
     adapter: Commanded.EventStore.Adapters.InMemory
   ]
 
+# Use a low Argon2 cost in tests to keep password hashing fast
+config :argon2_elixir, t_cost: 1, m_cost: 8
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 
