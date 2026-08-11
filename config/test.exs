@@ -33,7 +33,9 @@ config :fskick, Fskick.App,
     adapter: Commanded.EventStore.Adapters.InMemory
   ]
 
-# Use a low Argon2 cost in tests to keep password hashing fast
+# Hash passwords with a trivial fake in tests; Fskick.Users.Password.Argon2Test
+# still exercises the real hasher, kept cheap by the low cost params below.
+config :fskick, Fskick.Users.Password, adapter: Fskick.Users.Password.Plain
 config :argon2_elixir, t_cost: 1, m_cost: 8
 
 # Print only warnings and errors during test

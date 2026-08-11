@@ -18,6 +18,9 @@ config :fskick, Fskick.App,
     event_store: Fskick.EventStore
   ]
 
+# Configure password hashing
+config :fskick, Fskick.Users.Password, adapter: Fskick.Users.Password.Argon2
+
 # Configure the endpoint
 config :fskick, FskickWeb.Endpoint,
   url: [host: "localhost"],

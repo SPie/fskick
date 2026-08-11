@@ -23,17 +23,10 @@ defmodule FskickWeb.UserAuth do
   Assign `:current_scope` from the session token, if present and valid.
   """
   def fetch_current_scope_for_user(conn, _opts) do
-    {user_token, conn} = ensure_user_token(conn)
-    user = user_token && Users.get_user_by_session_token(user_token)
-    assign(conn, :current_scope, Scope.for_user(user))
-  end
-
-  defp ensure_user_token(conn) do
-    if token = get_session(conn, :user_token) do
-      {token, conn}
-    else
-      {nil, conn}
-    end
+    user_token = get_session(conn, :user_token)
+    userScope = user_token && Users.get_user_by_session_token(user_token)
+      |> Scope.for_user()
+    assign(conn, :current_scope, userScope)
   end
 
   ## Login / logout
@@ -48,13 +41,9 @@ defmodule FskickWeb.UserAuth do
 
     conn
     |> renew_session()
-    |> put_token_in_session(token)
+    |> put_session(:user_token, token)
     |> Phoenix.Controller.redirect(to: user_return_to || signed_in_path(conn))
-    |> then(fn conn -> maybe_write_remember_me(conn, params) end)
   end
-
-  # remember_me is a placeholder for future use; session cookie is enough today.
-  defp maybe_write_remember_me(conn, _params), do: conn
 
   @doc "Log the user out: drop the token and renew the session."
   def log_out_user(conn) do
@@ -71,10 +60,6 @@ defmodule FskickWeb.UserAuth do
     conn
     |> configure_session(renew: true)
     |> clear_session()
-  end
-
-  defp put_token_in_session(conn, token) do
-    put_session(conn, :user_token, token)
   end
 
   defp signed_in_path(_conn), do: ~p"/"

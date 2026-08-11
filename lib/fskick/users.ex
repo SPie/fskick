@@ -17,6 +17,7 @@ defmodule Fskick.Users do
   alias Fskick.Users.Commands.DeleteUserData
   alias Fskick.Users.Commands.RegisterUser
   alias Fskick.Users.Crypto
+  alias Fskick.Users.Password
   alias Fskick.Users.User
   alias Fskick.Users.UserToken
 
@@ -39,7 +40,7 @@ defmodule Fskick.Users do
       user_id: user_id,
       player_id: player_id,
       email: email,
-      hashed_password: Argon2.hash_pwd_salt(password)
+      hashed_password: Password.hash(password)
     }
 
     with {:ok, %RegisterUser{} = command} <- RegisterUser.new(attrs),
@@ -84,14 +85,7 @@ defmodule Fskick.Users do
       when is_binary(email) and is_binary(password) do
     user = Repo.get_by(User, email: normalize_email(email))
 
-    cond do
-      user && user.hashed_password && Argon2.verify_pass(password, user.hashed_password) ->
-        user
-
-      true ->
-        Argon2.no_user_verify()
-        nil
-    end
+    if Password.valid?(password, user && user.hashed_password), do: user
   end
 
   ## Session tokens

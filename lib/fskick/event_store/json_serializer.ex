@@ -58,7 +58,28 @@ defmodule Fskick.EventStore.JsonSerializer do
     end
   end
 
-  defp encrypt_pii(term) when is_struct(term) do
+  defp encrypt_pii(term) do
+    transform_pii(term, fn key_id, field, value ->
+      case Crypto.encrypt(key_id, value) do
+        {:ok, encrypted} ->
+          encrypted
+
+        :error ->
+          raise "cannot encrypt PII field #{inspect(field)}: no crypto key for #{inspect(key_id)}"
+      end
+    end)
+  end
+
+  defp decrypt_pii(term) do
+    transform_pii(term, fn key_id, _field, value ->
+      case Crypto.decrypt(key_id, value) do
+        {:ok, plaintext} -> plaintext
+        :error -> @tombstone
+      end
+    end)
+  end
+
+  defp transform_pii(term, fun) when is_struct(term) do
     case PII.impl_for(term) do
       nil ->
         term
@@ -68,40 +89,10 @@ defmodule Fskick.EventStore.JsonSerializer do
         key_id = Map.fetch!(term, key_field)
 
         Enum.reduce(fields, term, fn field, acc ->
-          Map.update!(acc, field, fn value ->
-            case Crypto.encrypt(key_id, value) do
-              {:ok, encrypted} ->
-                encrypted
-
-              :error ->
-                raise "cannot encrypt PII field #{inspect(field)}: no crypto key for #{inspect(key_id)}"
-            end
-          end)
+          Map.update!(acc, field, &fun.(key_id, field, &1))
         end)
     end
   end
 
-  defp encrypt_pii(term), do: term
-
-  defp decrypt_pii(term) when is_struct(term) do
-    case PII.impl_for(term) do
-      nil ->
-        term
-
-      _impl ->
-        %{key_field: key_field, fields: fields} = PII.spec(term)
-        key_id = Map.fetch!(term, key_field)
-
-        Enum.reduce(fields, term, fn field, acc ->
-          Map.update!(acc, field, fn value ->
-            case Crypto.decrypt(key_id, value) do
-              {:ok, plaintext} -> plaintext
-              :error -> @tombstone
-            end
-          end)
-        end)
-    end
-  end
-
-  defp decrypt_pii(term), do: term
+  defp transform_pii(term, _fun), do: term
 end
