@@ -8,7 +8,7 @@ defmodule Fskick.Repo.Migrations.CreateUsers do
       add :id, :uuid, primary_key: true
       add :player_id, :uuid, null: false
       add :email, :citext, null: false
-      add :hashed_password, :string
+      add :hashed_password, :string, null: false
       add :created_at, :utc_datetime_usec, null: false
 
       timestamps()

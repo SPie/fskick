@@ -5,10 +5,9 @@ defmodule Fskick.Users do
   Write side dispatches commands through `Fskick.App` (event-sourced); the
   `email` PII is crypto-shredded via a per-user key (`Fskick.Users.Crypto`).
   Read side queries the `Fskick.Users.User` projection. Authentication tokens
-  are kept in a plain, non-event-sourced `users_tokens` table.
+  are kept in a plain, non-event-sourced `users_tokens` table whose rows
+  cascade away with the user row on erasure.
   """
-
-  import Ecto.Query, only: [from: 2]
 
   alias Fskick.App
   alias Fskick.CQRS.Projection
@@ -113,24 +112,21 @@ defmodule Fskick.Users do
   ## Erasure
 
   @doc """
-  Erase a user's personal data (right-to-erasure). Scrubs the read-model row,
-  deletes the crypto key (making the email in the event store unrecoverable),
-  and removes all session tokens. Events themselves are retained.
+  Erase a user's personal data (right-to-erasure). Deletes the read-model row
+  (session tokens cascade with it) and the crypto key, which makes the email in
+  the event store permanently unrecoverable ciphertext. The events themselves
+  are retained, and the linked player is left untouched.
 
-  Returns `{:ok, %User{}}` (the scrubbed row) or an error tuple.
+  Returns `:ok` or an error tuple.
   """
   def delete_user_data(user_id) when is_binary(user_id) do
     with {:ok, %DeleteUserData{} = command} <- DeleteUserData.new(%{user_id: user_id}),
          :ok <- App.dispatch(command),
-         {:ok, user} <- Projection.await(User, user_id, match: &scrubbed?/1) do
+         :ok <- Projection.await_absence(User, user_id) do
       Crypto.delete_key(user_id)
-      Repo.delete_all(from t in UserToken, where: t.user_id == ^user_id)
-      {:ok, user}
+      :ok
     end
   end
-
-  defp scrubbed?(%User{email: "deleted-" <> _}), do: true
-  defp scrubbed?(_), do: false
 
   defp normalize_email(email), do: email |> String.trim() |> String.downcase()
 end

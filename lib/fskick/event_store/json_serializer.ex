@@ -35,6 +35,13 @@ defmodule Fskick.EventStore.JsonSerializer do
 
   @tombstone "[redacted]"
 
+  @doc """
+  The placeholder a PII field decrypts to once the user's key has been
+  deleted. Read-side code that has to tell a real value apart from an
+  erased one compares against this.
+  """
+  def tombstone(), do: @tombstone
+
   @impl true
   def serialize(term) do
     term

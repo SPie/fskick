@@ -4,8 +4,10 @@ defmodule Fskick.Users.User do
 
   Written by `Fskick.Users.Projectors.User` in response to user events. Used
   for login lookups and uniqueness checks; not used for user-input casting.
-  On erasure the projector scrubs `email` to a tombstone and nils
-  `hashed_password`.
+  On erasure the projector deletes the row outright — keeping a scrubbed one
+  would still record, via `player_id`, that an identified person had an
+  account. The erasure guarantee itself comes from destroying the user's
+  crypto key (`Fskick.Users.Crypto`), not from anything in this table.
   """
 
   use Ecto.Schema

@@ -1,11 +1,14 @@
 defmodule Fskick.UsersTest do
   use Fskick.DataCase
 
+  import Ecto.Query, only: [from: 2]
   import Fskick.UsersFixtures
 
+  alias Fskick.Players
   alias Fskick.Users
   alias Fskick.Users.CryptoKey
   alias Fskick.Users.User
+  alias Fskick.Users.UserToken
 
   describe "register_user_for_player/3" do
     test "registers a user linked to an existing player" do
@@ -116,16 +119,45 @@ defmodule Fskick.UsersTest do
   end
 
   describe "delete_user_data/1" do
-    test "scrubs the read model, deletes the key, and blocks login" do
+    test "deletes the read-model row, the key, and blocks login" do
       user = user_fixture(%{email: "alice@example.com", password: "hello world!"})
-      _token = Users.generate_user_session_token(user)
 
-      assert {:ok, scrubbed} = Users.delete_user_data(user.id)
-      assert scrubbed.email == "deleted-#{user.id}"
-      assert scrubbed.hashed_password == nil
+      assert :ok = Users.delete_user_data(user.id)
 
+      refute Users.get_user(user.id)
       refute Repo.get(CryptoKey, user.id)
       refute Users.get_user_by_email_and_password("alice@example.com", "hello world!")
+    end
+
+    test "session tokens cascade away with the user row" do
+      user = user_fixture()
+      token = Users.generate_user_session_token(user)
+
+      assert :ok = Users.delete_user_data(user.id)
+
+      refute Users.get_user_by_session_token(token)
+      assert Repo.aggregate(from(t in UserToken, where: t.user_id == ^user.id), :count) == 0
+    end
+
+    test "leaves the linked player untouched" do
+      user = user_fixture()
+      player = Users.get_linked_player(user)
+
+      assert :ok = Users.delete_user_data(user.id)
+
+      assert Players.get_player(player.id)
+    end
+
+    test "releases the email address for re-registration" do
+      user = user_fixture(%{email: "alice@example.com"})
+      :ok = Users.delete_user_data(user.id)
+
+      assert {:ok, %User{}} =
+               Users.register_user_with_new_player(
+                 unique_player_name(),
+                 "alice@example.com",
+                 valid_user_password()
+               )
     end
   end
 end
