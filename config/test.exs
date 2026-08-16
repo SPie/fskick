@@ -14,6 +14,18 @@ config :fskick, Fskick.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 
+# The test event store is in-memory (see below), so there is no event store
+# database for the keys to share. They get their own database here instead.
+config :fskick, Fskick.KeyRepo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "localhost",
+  port: 5433,
+  database: "fskick_keys_test#{System.get_env("MIX_TEST_PARTITION")}",
+  migration_source: "keys_schema_migrations",
+  pool: Ecto.Adapters.SQL.Sandbox,
+  pool_size: System.schedulers_online() * 2
+
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :fskick, FskickWeb.Endpoint,

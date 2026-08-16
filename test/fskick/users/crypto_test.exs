@@ -2,6 +2,7 @@ defmodule Fskick.Users.CryptoTest do
   use Fskick.DataCase
 
   alias Fskick.Users.Crypto
+  alias Fskick.Users.CryptoKey
 
   setup do
     %{user_id: Ecto.UUID.generate()}
@@ -55,5 +56,24 @@ defmodule Fskick.Users.CryptoTest do
       {:ok, ciphertext} = Crypto.encrypt(user_id, "alice@example.com")
       assert :error = Crypto.decrypt(other, ciphertext)
     end
+  end
+
+  describe "key storage" do
+    test "keys are written to the key repo, and the read model has no such table",
+         %{user_id: user_id} do
+      :ok = Crypto.generate_key(user_id)
+
+      assert %CryptoKey{} = KeyRepo.get(CryptoKey, user_id)
+
+      # The whole point of the separate repo: a read-model reset must not be
+      # able to shred keys, so the table must not exist in that database.
+      assert table?(KeyRepo, "user_crypto_keys")
+      refute table?(Repo, "user_crypto_keys")
+    end
+  end
+
+  defp table?(repo, name) do
+    %{rows: [[oid]]} = Ecto.Adapters.SQL.query!(repo, "select to_regclass($1)", [name])
+    not is_nil(oid)
   end
 end

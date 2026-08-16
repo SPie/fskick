@@ -91,11 +91,22 @@ defmodule Fskick.MixProject do
   defp aliases do
     [
       setup: ["deps.get", "ecto.setup", "event_store.setup", "assets.setup", "assets.build"],
-      "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
+      # The key repo is kept out of `:ecto_repos` so `ecto.drop` can never reach
+      # the event store database, so create/migrate must name both repos. Both
+      # go in one invocation: Mix skips a task that already ran in the chain.
+      "ecto.setup": [
+        "ecto.create -r Fskick.Repo -r Fskick.KeyRepo",
+        "ecto.migrate -r Fskick.Repo -r Fskick.KeyRepo",
+        "run priv/repo/seeds.exs"
+      ],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       "event_store.setup": ["event_store.create", "event_store.init"],
       "event_store.reset": ["event_store.drop", "event_store.setup"],
-      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      test: [
+        "ecto.create --quiet -r Fskick.Repo -r Fskick.KeyRepo",
+        "ecto.migrate --quiet -r Fskick.Repo -r Fskick.KeyRepo",
+        "test"
+      ],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["compile", "tailwind fskick", "esbuild fskick"],
       "assets.deploy": [

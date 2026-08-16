@@ -26,7 +26,7 @@ defmodule Fskick.UsersTest do
       player = player_fixture()
       {:ok, user} = Users.register_user_for_player(player.id, "alice@example.com", "hello world!")
 
-      assert Repo.get(CryptoKey, user.id)
+      assert KeyRepo.get(CryptoKey, user.id)
     end
 
     test "normalizes the email" do
@@ -125,7 +125,7 @@ defmodule Fskick.UsersTest do
       assert :ok = Users.delete_user_data(user.id)
 
       refute Users.get_user(user.id)
-      refute Repo.get(CryptoKey, user.id)
+      refute KeyRepo.get(CryptoKey, user.id)
       refute Users.get_user_by_email_and_password("alice@example.com", "hello world!")
     end
 

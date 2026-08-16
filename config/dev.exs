@@ -19,6 +19,16 @@ config :fskick, Fskick.EventStore,
   port: 5433,
   database: "fskick_eventstore_dev"
 
+# Crypto keys share the event store's database — see `Fskick.KeyRepo`.
+config :fskick, Fskick.KeyRepo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "localhost",
+  port: 5433,
+  database: "fskick_eventstore_dev",
+  migration_source: "keys_schema_migrations",
+  pool_size: 2
+
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #
