@@ -10,6 +10,9 @@ defmodule Fskick.Application do
     children = [
       FskickWeb.Telemetry,
       Fskick.Repo,
+      # Before Fskick.App: its subscriptions start deserializing events (and so
+      # reading crypto keys) as soon as they boot.
+      Fskick.KeyRepo,
       {DNSCluster, query: Application.get_env(:fskick, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Fskick.PubSub},
       Fskick.App,
@@ -18,6 +21,7 @@ defmodule Fskick.Application do
       Fskick.Seasons.ProcessManagers.SoleActiveSeason,
       Fskick.Games.Projectors.PlayerStats,
       Fskick.Games.Projectors.PlayerResults,
+      Fskick.Users.Projectors.User,
       FskickWeb.Endpoint
     ]
 

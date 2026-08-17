@@ -7,6 +7,9 @@ defmodule Fskick.CQRS.Projection do
   (or updated) the row in the read model. Pass `:match` to wait for a
   specific row state — e.g. `match: & &1.active` to wait until the row
   exists and a predicate returns true.
+
+  `await_absence/3` is the mirror image: it blocks until the projector
+  has *removed* the row, for commands whose projection deletes it.
   """
 
   alias Fskick.Repo
@@ -29,32 +32,50 @@ defmodule Fskick.CQRS.Projection do
   if the projection does not catch up in time.
   """
   def await(schema, id, opts \\ []) do
-    timeout = Keyword.get(opts, :timeout, @default_wait_ms)
     match = Keyword.get(opts, :match, fn _ -> true end)
+
+    poll(schema, id, opts, fn
+      nil -> :retry
+      struct -> if match.(struct), do: {:halt, {:ok, struct}}, else: :retry
+    end)
+  end
+
+  @doc """
+  Poll the read model for `schema` with the given `id` until the row is
+  gone, or the timeout elapses.
+
+  ## Options
+
+  - `:timeout` — milliseconds to wait (default `#{@default_wait_ms}`).
+
+  Returns `:ok` once the row no longer exists, or
+  `{:error, :projection_timeout}` if it is still there when time runs out.
+  """
+  def await_absence(schema, id, opts \\ []) do
+    poll(schema, id, opts, fn
+      nil -> {:halt, :ok}
+      _struct -> :retry
+    end)
+  end
+
+  defp poll(schema, id, opts, check) do
+    timeout = Keyword.get(opts, :timeout, @default_wait_ms)
     deadline = System.monotonic_time(:millisecond) + timeout
-    do_await(schema, id, match, deadline)
+    do_poll(schema, id, check, deadline)
   end
 
-  defp do_await(schema, id, match, deadline) do
-    case Repo.get(schema, id) do
-      nil ->
-        retry_or_timeout(schema, id, match, deadline)
+  defp do_poll(schema, id, check, deadline) do
+    case check.(Repo.get(schema, id)) do
+      {:halt, result} ->
+        result
 
-      struct ->
-        if match.(struct) do
-          {:ok, struct}
+      :retry ->
+        if System.monotonic_time(:millisecond) >= deadline do
+          {:error, :projection_timeout}
         else
-          retry_or_timeout(schema, id, match, deadline)
+          Process.sleep(@poll_interval_ms)
+          do_poll(schema, id, check, deadline)
         end
-    end
-  end
-
-  defp retry_or_timeout(schema, id, match, deadline) do
-    if System.monotonic_time(:millisecond) >= deadline do
-      {:error, :projection_timeout}
-    else
-      Process.sleep(@poll_interval_ms)
-      do_await(schema, id, match, deadline)
     end
   end
 end

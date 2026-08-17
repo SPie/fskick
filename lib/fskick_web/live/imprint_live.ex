@@ -3,7 +3,7 @@ defmodule FskickWeb.ImprintLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
       <h1 class="text-2xl font-bold">Impressum</h1>
     </Layouts.app>
     """

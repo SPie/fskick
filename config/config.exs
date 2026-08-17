@@ -7,6 +7,11 @@
 # General application configuration
 import Config
 
+# `Fskick.KeyRepo` is deliberately absent from `:ecto_repos` — `mix ecto.drop`
+# (and so `mix ecto.reset`) targets every repo in that list, and the key repo
+# points at the event store database. It is created and migrated explicitly
+# with `-r Fskick.KeyRepo`; see the aliases in `mix.exs`, `Fskick.Release` and
+# the `Fskick.KeyRepo` moduledoc.
 config :fskick,
   ecto_repos: [Fskick.Repo],
   generators: [timestamp_type: :utc_datetime],
@@ -17,6 +22,9 @@ config :fskick, Fskick.App,
     adapter: Commanded.EventStore.Adapters.EventStore,
     event_store: Fskick.EventStore
   ]
+
+# Configure password hashing
+config :fskick, Fskick.Users.Password, adapter: Fskick.Users.Password.Argon2
 
 # Configure the endpoint
 config :fskick, FskickWeb.Endpoint,

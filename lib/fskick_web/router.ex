@@ -1,6 +1,8 @@
 defmodule FskickWeb.Router do
   use FskickWeb, :router
 
+  import FskickWeb.UserAuth
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -8,6 +10,7 @@ defmodule FskickWeb.Router do
     plug :put_root_layout, html: {FskickWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug :fetch_current_scope_for_user
   end
 
   pipeline :api do
@@ -17,11 +20,27 @@ defmodule FskickWeb.Router do
   scope "/", FskickWeb do
     pipe_through :browser
 
-    live "/", HomeLive, :home
-    live "/players", PlayersLive, :index
-    live "/players/:id", PlayerDetailLive, :show
-    live "/streaks", StreaksLive, :show
-    live "/imprint", ImprintLive, :show
+    post "/users/log-in", UserSessionController, :create
+    delete "/users/log-out", UserSessionController, :delete
+
+    live_session :current_user,
+      on_mount: [{FskickWeb.UserAuth, :mount_current_scope}] do
+      live "/", HomeLive, :home
+      live "/players", PlayersLive, :index
+      live "/players/:id", PlayerDetailLive, :show
+      live "/streaks", StreaksLive, :show
+      live "/imprint", ImprintLive, :show
+    end
+
+    live_session :redirect_if_authenticated,
+      on_mount: [{FskickWeb.UserAuth, :redirect_if_authenticated}] do
+      live "/users/log-in", UserLoginLive, :new
+    end
+
+    live_session :require_authenticated,
+      on_mount: [{FskickWeb.UserAuth, :require_authenticated_user}] do
+      live "/users/profile", UserProfileLive, :show
+    end
   end
 
   # Other scopes may use custom stacks.

@@ -12,6 +12,7 @@ defmodule Fskick.Release do
     migrate_repos()
     init_event_stores()
     migrate_event_stores()
+    migrate_key_repo()
   end
 
   def rollback(repo, version) do
@@ -23,6 +24,14 @@ defmodule Fskick.Release do
     for repo <- Application.fetch_env!(@app, :ecto_repos) do
       {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
     end
+  end
+
+  # `Fskick.KeyRepo` is not in `:ecto_repos` (see `config/config.exs`), so
+  # `migrate_repos/0` skips it. It runs last because it points at the event
+  # store's database, which `init_event_stores/0` is what guarantees exists.
+  defp migrate_key_repo() do
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(Fskick.KeyRepo, &Ecto.Migrator.run(&1, :up, all: true))
   end
 
   defp init_event_stores() do

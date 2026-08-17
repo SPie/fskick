@@ -18,6 +18,7 @@ defmodule Fskick.DataCase do
 
   using do
     quote do
+      alias Fskick.KeyRepo
       alias Fskick.Repo
 
       import Ecto
@@ -37,7 +38,12 @@ defmodule Fskick.DataCase do
   """
   def setup_sandbox(tags) do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Fskick.Repo, shared: not tags[:async])
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+    key_pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Fskick.KeyRepo, shared: not tags[:async])
+
+    on_exit(fn ->
+      Ecto.Adapters.SQL.Sandbox.stop_owner(pid)
+      Ecto.Adapters.SQL.Sandbox.stop_owner(key_pid)
+    end)
   end
 
   @doc """
