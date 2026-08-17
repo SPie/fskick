@@ -32,12 +32,28 @@ defmodule Fskick.CQRS.Projection do
   if the projection does not catch up in time.
   """
   def await(schema, id, opts \\ []) do
+    poll(fn -> Repo.get(schema, id) end, opts, match_check(opts))
+  end
+
+  @doc """
+  Like `await/3`, but addresses the row with `Repo.get_by/2` clauses
+  instead of a primary key — needed for read models with a composite
+  primary key, such as `Fskick.Games.PlayerResult` (`player_id`,
+  `game_id`) and `Fskick.Games.PlayerStats` (`season_id`, `player_id`).
+
+  Takes the same `:timeout` and `:match` options as `await/3`.
+  """
+  def await_by(schema, clauses, opts \\ []) do
+    poll(fn -> Repo.get_by(schema, clauses) end, opts, match_check(opts))
+  end
+
+  defp match_check(opts) do
     match = Keyword.get(opts, :match, fn _ -> true end)
 
-    poll(schema, id, opts, fn
+    fn
       nil -> :retry
       struct -> if match.(struct), do: {:halt, {:ok, struct}}, else: :retry
-    end)
+    end
   end
 
   @doc """
@@ -52,20 +68,20 @@ defmodule Fskick.CQRS.Projection do
   `{:error, :projection_timeout}` if it is still there when time runs out.
   """
   def await_absence(schema, id, opts \\ []) do
-    poll(schema, id, opts, fn
+    poll(fn -> Repo.get(schema, id) end, opts, fn
       nil -> {:halt, :ok}
       _struct -> :retry
     end)
   end
 
-  defp poll(schema, id, opts, check) do
+  defp poll(fetch, opts, check) do
     timeout = Keyword.get(opts, :timeout, @default_wait_ms)
     deadline = System.monotonic_time(:millisecond) + timeout
-    do_poll(schema, id, check, deadline)
+    do_poll(fetch, check, deadline)
   end
 
-  defp do_poll(schema, id, check, deadline) do
-    case check.(Repo.get(schema, id)) do
+  defp do_poll(fetch, check, deadline) do
+    case check.(fetch.()) do
       {:halt, result} ->
         result
 
@@ -74,7 +90,7 @@ defmodule Fskick.CQRS.Projection do
           {:error, :projection_timeout}
         else
           Process.sleep(@poll_interval_ms)
-          do_poll(schema, id, check, deadline)
+          do_poll(fetch, check, deadline)
         end
     end
   end

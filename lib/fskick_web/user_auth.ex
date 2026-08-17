@@ -24,8 +24,12 @@ defmodule FskickWeb.UserAuth do
   """
   def fetch_current_scope_for_user(conn, _opts) do
     user_token = get_session(conn, :user_token)
-    userScope = user_token && Users.get_user_by_session_token(user_token)
-      |> Scope.for_user()
+
+    userScope =
+      user_token &&
+        Users.get_user_by_session_token(user_token)
+        |> Scope.for_user()
+
     assign(conn, :current_scope, userScope)
   end
 
@@ -35,7 +39,7 @@ defmodule FskickWeb.UserAuth do
   Log the user in: store a fresh session token, renew the session to prevent
   fixation, and redirect to the post-login path.
   """
-  def log_in_user(conn, user, params \\ %{}) do
+  def log_in_user(conn, user, _params \\ %{}) do
     token = Users.generate_user_session_token(user)
     user_return_to = get_session(conn, :user_return_to)
 
