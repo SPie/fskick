@@ -9,8 +9,12 @@ defmodule Fskick.Users.Aggregates.User do
 
   alias Fskick.Users.Aggregates.User
   alias Fskick.Users.Commands.DeleteUserData
+  alias Fskick.Users.Commands.LogInUser
+  alias Fskick.Users.Commands.LogOutUser
   alias Fskick.Users.Commands.RegisterUser
   alias Fskick.Users.Events.UserDataDeleted
+  alias Fskick.Users.Events.UserLoggedIn
+  alias Fskick.Users.Events.UserLoggedOut
   alias Fskick.Users.Events.UserRegistered
 
   defstruct [:user_id, :player_id, registered?: false]
@@ -36,6 +40,26 @@ defmodule Fskick.Users.Aggregates.User do
     {:error, :not_found}
   end
 
+  def execute(%User{user_id: nil}, %LogInUser{}) do
+    {:error, :not_found}
+  end
+
+  def execute(%User{}, %LogInUser{} = command) do
+    %UserLoggedIn{
+      user_id: command.user_id,
+      session_id: command.session_id,
+      expires_at: command.expires_at
+    }
+  end
+
+  def execute(%User{user_id: nil}, %LogOutUser{}) do
+    {:error, :not_found}
+  end
+
+  def execute(%User{}, %LogOutUser{} = command) do
+    %UserLoggedOut{user_id: command.user_id, session_id: command.session_id}
+  end
+
   def apply(%User{} = state, %UserRegistered{user_id: id, player_id: player_id}) do
     %User{state | user_id: id, player_id: player_id, registered?: true}
   end
@@ -43,4 +67,12 @@ defmodule Fskick.Users.Aggregates.User do
   def apply(%User{} = state, %UserDataDeleted{}) do
     state
   end
+
+  # Login and logout are audit history: they append to the user stream but leave
+  # the aggregate state untouched, so state does not grow with every session.
+  # (The stream does grow, which lengthens aggregate rebuilds; if that ever
+  # matters, Commanded snapshotting is the lever.)
+  def apply(%User{} = state, %UserLoggedIn{}), do: state
+
+  def apply(%User{} = state, %UserLoggedOut{}), do: state
 end

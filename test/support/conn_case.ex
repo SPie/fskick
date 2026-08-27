@@ -48,7 +48,7 @@ defmodule FskickWeb.ConnCase do
 
   @doc "Store a session token for `user` in the connection's session."
   def log_in_user(conn, user) do
-    token = Fskick.Users.generate_user_session_token(user)
+    {:ok, token} = Fskick.Users.start_session(user)
 
     conn
     |> Phoenix.ConnTest.init_test_session(%{})

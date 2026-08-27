@@ -4,21 +4,33 @@ defmodule Fskick.Users do
 
   Write side dispatches commands through `Fskick.App` (event-sourced); the
   `email` PII is crypto-shredded via a per-user key (`Fskick.Users.Crypto`).
-  Read side queries the `Fskick.Users.User` projection. Authentication tokens
-  are kept in a plain, non-event-sourced `users_tokens` table whose rows
-  cascade away with the user row on erasure.
+  Read side queries the `Fskick.Users.User` projection.
+
+  Authentication is split across both sides on purpose: the *fact* of a login or
+  logout is event-sourced onto the user stream (`UserLoggedIn`, `UserLoggedOut`)
+  as audit history, while the session token itself lives in a plain, deletable
+  `user_sessions` table whose rows cascade away with the user row on erasure.
+  See `Fskick.Users.Session` for why.
   """
+
+  import Ecto.Query, only: [from: 2]
+
+  require Logger
 
   alias Fskick.App
   alias Fskick.CQRS.Projection
   alias Fskick.Players
   alias Fskick.Repo
   alias Fskick.Users.Commands.DeleteUserData
+  alias Fskick.Users.Commands.LogInUser
+  alias Fskick.Users.Commands.LogOutUser
   alias Fskick.Users.Commands.RegisterUser
   alias Fskick.Users.Crypto
+  alias Fskick.Users.Events.UserLoggedIn
+  alias Fskick.Users.Events.UserLoggedOut
   alias Fskick.Users.Password
+  alias Fskick.Users.Session
   alias Fskick.Users.User
-  alias Fskick.Users.UserToken
 
   ## Registration
 
@@ -87,26 +99,147 @@ defmodule Fskick.Users do
     if Password.valid?(password, user && user.hashed_password), do: user
   end
 
-  ## Session tokens
+  ## Sessions
 
-  @doc "Generate a session token, store its hash, and return the raw token."
-  def generate_user_session_token(user) do
-    {token, user_token} = UserToken.build_session_token(user)
-    Repo.insert!(user_token)
-    token
+  @doc """
+  Start a session for `user`: record the login on the user's stream and store
+  the session's token hash.
+
+  Returns `{:ok, raw_token}` — the token to put in the session cookie — or
+  `{:error, reason}` if the login could not be recorded.
+
+  The dispatch happens *before* the row is inserted, so a usable session can
+  never exist without a corresponding audit entry. The reverse failure (an
+  audit entry for a login that did not stick) is the harmless one.
+  """
+  def start_session(%User{} = user) do
+    session_id = Ecto.UUID.generate()
+    {token, token_hash} = Session.build_token()
+    expires_at = Session.expires_at()
+
+    attrs = %{
+      user_id: user.id,
+      session_id: session_id,
+      expires_at: DateTime.to_iso8601(expires_at)
+    }
+
+    with {:ok, %LogInUser{} = command} <- LogInUser.new(attrs),
+         :ok <- App.dispatch(command) do
+      Repo.insert!(%Session{
+        id: session_id,
+        user_id: user.id,
+        token_hash: token_hash,
+        expires_at: expires_at
+      })
+
+      delete_expired_sessions()
+
+      {:ok, token}
+    end
   end
 
-  @doc "The user for a (raw) session token, or `nil` if invalid/expired."
-  def get_user_by_session_token(token) do
-    {:ok, query} = UserToken.verify_session_token_query(token)
+  @doc "The user for a (raw) session token, or `nil` if invalid or expired."
+  def get_user_by_session_token(token) when is_binary(token) do
+    hash = Session.hash_token(token)
+    now = DateTime.utc_now()
+
+    query =
+      from s in Session,
+        join: u in assoc(s, :user),
+        where: s.token_hash == ^hash and s.expires_at > ^now,
+        select: u
+
     Repo.one(query)
   end
 
-  @doc "Delete a session token."
-  def delete_user_session_token(token) do
-    hashed_token = :crypto.hash(:sha256, token)
-    Repo.delete_all(UserToken.by_token_and_context_query(hashed_token, "session"))
-    :ok
+  @doc """
+  End the session identified by a (raw) session token, and record the logout.
+
+  Always returns `:ok`. The row is deleted *before* the dispatch — the
+  security-critical half of logging out is killing the token, so a dispatch
+  failure is logged but does not fail the logout. An unknown or already-expired
+  token is an idempotent no-op that records nothing.
+  """
+  def end_session(token) when is_binary(token) do
+    case Repo.get_by(Session, token_hash: Session.hash_token(token)) do
+      nil ->
+        :ok
+
+      %Session{id: session_id, user_id: user_id} = session ->
+        Repo.delete!(session)
+        record_logout(user_id, session_id)
+    end
+  end
+
+  defp record_logout(user_id, session_id) do
+    with {:ok, %LogOutUser{} = command} <-
+           LogOutUser.new(%{user_id: user_id, session_id: session_id}),
+         :ok <- App.dispatch(command) do
+      :ok
+    else
+      error ->
+        Logger.warning(
+          "session #{session_id} was ended but the logout could not be recorded: #{inspect(error)}"
+        )
+
+        :ok
+    end
+  end
+
+  @doc """
+  The login history for a user, oldest first, read straight from their event
+  stream.
+
+  Each entry is a map with `:event` (`:logged_in` or `:logged_out`),
+  `:session_id`, `:at` (when it happened) and, for logins, `:expires_at`.
+
+  Returns `[]` for an unknown user.
+  """
+  def list_login_history(user_id) when is_binary(user_id) do
+    case Commanded.EventStore.stream_forward(App, "user-" <> user_id) do
+      {:error, :stream_not_found} ->
+        []
+
+      {:error, _reason} ->
+        []
+
+      stream ->
+        stream
+        |> Enum.flat_map(&login_history_entry/1)
+    end
+  end
+
+  defp login_history_entry(%Commanded.EventStore.RecordedEvent{data: data} = recorded) do
+    case data do
+      %UserLoggedIn{session_id: session_id, expires_at: expires_at} ->
+        [
+          %{
+            event: :logged_in,
+            session_id: session_id,
+            at: recorded.created_at,
+            expires_at: coerce_datetime(expires_at)
+          }
+        ]
+
+      %UserLoggedOut{session_id: session_id} ->
+        [%{event: :logged_out, session_id: session_id, at: recorded.created_at}]
+
+      _other ->
+        []
+    end
+  end
+
+  # Event payloads round-trip as structs through the in-memory test adapter but
+  # as strings through the JSON serializer used in dev and prod.
+  defp coerce_datetime(%DateTime{} = dt), do: dt
+
+  defp coerce_datetime(value) when is_binary(value) do
+    {:ok, dt, _offset} = DateTime.from_iso8601(value)
+    dt
+  end
+
+  defp delete_expired_sessions do
+    Repo.delete_all(from s in Session, where: s.expires_at <= ^DateTime.utc_now())
   end
 
   ## Erasure
