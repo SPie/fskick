@@ -14,10 +14,6 @@ defmodule FskickWeb.UserAuth do
   alias Fskick.Users
   alias Fskick.Users.Scope
 
-  # Declared so logout can clear it; nothing writes it yet (there is no
-  # remember-me flow).
-  @remember_me_cookie "_fskick_user_remember_me"
-
   ## Plugs
 
   @doc """
@@ -37,11 +33,12 @@ defmodule FskickWeb.UserAuth do
   ## Login / logout
 
   @doc """
-  Log the user in: record the login, store a fresh session token, and renew the
-  session to prevent fixation, then redirect to the post-login path.
+  Log the user in and redirect.
 
-  A `live_socket_id` is stored alongside the token so `log_out_user/1` can tear
-  down any LiveView the session has open.
+  Starts a session for `user`, renews the session cookie to prevent fixation,
+  and stores the session token in it. A `live_socket_id` is stored alongside
+  the token so `log_out_user/1` can tear down any LiveView the session has
+  open.
   """
   def log_in_user(conn, user, _params \\ %{}) do
     case Users.start_session(user) do
@@ -75,7 +72,6 @@ defmodule FskickWeb.UserAuth do
 
     conn
     |> renew_session()
-    |> delete_resp_cookie(@remember_me_cookie)
     |> Phoenix.Controller.redirect(to: ~p"/")
   end
 

@@ -17,7 +17,7 @@ defmodule Fskick.Users.Aggregates.User do
   alias Fskick.Users.Events.UserLoggedOut
   alias Fskick.Users.Events.UserRegistered
 
-  defstruct [:user_id, :player_id, registered?: false]
+  defstruct [:user_id, :player_id]
 
   def execute(%User{user_id: nil}, %RegisterUser{} = command) do
     %UserRegistered{
@@ -32,12 +32,12 @@ defmodule Fskick.Users.Aggregates.User do
     {:error, :already_created}
   end
 
-  def execute(%User{registered?: true, user_id: id}, %DeleteUserData{}) do
-    %UserDataDeleted{user_id: id}
+  def execute(%User{user_id: nil}, %DeleteUserData{}) do
+    {:error, :not_found}
   end
 
-  def execute(%User{}, %DeleteUserData{}) do
-    {:error, :not_found}
+  def execute(%User{user_id: id}, %DeleteUserData{}) do
+    %UserDataDeleted{user_id: id}
   end
 
   def execute(%User{user_id: nil}, %LogInUser{}) do
@@ -61,7 +61,7 @@ defmodule Fskick.Users.Aggregates.User do
   end
 
   def apply(%User{} = state, %UserRegistered{user_id: id, player_id: player_id}) do
-    %User{state | user_id: id, player_id: player_id, registered?: true}
+    %User{state | user_id: id, player_id: player_id}
   end
 
   def apply(%User{} = state, %UserDataDeleted{}) do

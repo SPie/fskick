@@ -178,44 +178,6 @@ defmodule Fskick.UsersTest do
     end
   end
 
-  describe "list_login_history/1" do
-    test "records logins and logouts against the user's stream" do
-      user = user_fixture()
-
-      {:ok, token} = Users.start_session(user)
-      :ok = Users.end_session(token)
-
-      assert [logged_in, logged_out] = Users.list_login_history(user.id)
-
-      assert logged_in.event == :logged_in
-      assert logged_out.event == :logged_out
-      assert logged_in.session_id == logged_out.session_id
-      assert %DateTime{} = logged_in.at
-      assert %DateTime{} = logged_in.expires_at
-    end
-
-    test "an expired session leaves its login in the history" do
-      user = user_fixture()
-      {:ok, _token} = Users.start_session(user)
-
-      Repo.update_all(from(s in Session, where: s.user_id == ^user.id),
-        set: [expires_at: DateTime.add(DateTime.utc_now(), -1, :second)]
-      )
-
-      assert [%{event: :logged_in}] = Users.list_login_history(user.id)
-    end
-
-    test "returns an empty list for a user who never logged in" do
-      user = user_fixture()
-
-      assert Users.list_login_history(user.id) == []
-    end
-
-    test "returns an empty list for an unknown user" do
-      assert Users.list_login_history(Ecto.UUID.generate()) == []
-    end
-  end
-
   describe "delete_user_data/1" do
     test "deletes the read-model row, the key, and blocks login" do
       user = user_fixture(%{email: "alice@example.com", password: "hello world!"})

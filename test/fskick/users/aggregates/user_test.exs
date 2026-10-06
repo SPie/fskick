@@ -97,7 +97,7 @@ defmodule Fskick.Users.Aggregates.UserTest do
         hashed_password: "hashed"
       }
 
-      assert %User{user_id: ^id, player_id: ^player_id, registered?: true} =
+      assert %User{user_id: ^id, player_id: ^player_id} =
                User.apply(%User{}, event)
     end
 

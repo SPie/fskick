@@ -26,8 +26,6 @@ defmodule Fskick.Users do
   alias Fskick.Users.Commands.LogOutUser
   alias Fskick.Users.Commands.RegisterUser
   alias Fskick.Users.Crypto
-  alias Fskick.Users.Events.UserLoggedIn
-  alias Fskick.Users.Events.UserLoggedOut
   alias Fskick.Users.Password
   alias Fskick.Users.Session
   alias Fskick.Users.User
@@ -138,6 +136,10 @@ defmodule Fskick.Users do
     end
   end
 
+  defp delete_expired_sessions() do
+    Repo.delete_all(from s in Session, where: s.expires_at <= ^DateTime.utc_now())
+  end
+
   @doc "The user for a (raw) session token, or `nil` if invalid or expired."
   def get_user_by_session_token(token) when is_binary(token) do
     hash = Session.hash_token(token)
@@ -184,62 +186,6 @@ defmodule Fskick.Users do
 
         :ok
     end
-  end
-
-  @doc """
-  The login history for a user, oldest first, read straight from their event
-  stream.
-
-  Each entry is a map with `:event` (`:logged_in` or `:logged_out`),
-  `:session_id`, `:at` (when it happened) and, for logins, `:expires_at`.
-
-  Returns `[]` for an unknown user.
-  """
-  def list_login_history(user_id) when is_binary(user_id) do
-    case Commanded.EventStore.stream_forward(App, "user-" <> user_id) do
-      {:error, :stream_not_found} ->
-        []
-
-      {:error, _reason} ->
-        []
-
-      stream ->
-        stream
-        |> Enum.flat_map(&login_history_entry/1)
-    end
-  end
-
-  defp login_history_entry(%Commanded.EventStore.RecordedEvent{data: data} = recorded) do
-    case data do
-      %UserLoggedIn{session_id: session_id, expires_at: expires_at} ->
-        [
-          %{
-            event: :logged_in,
-            session_id: session_id,
-            at: recorded.created_at,
-            expires_at: coerce_datetime(expires_at)
-          }
-        ]
-
-      %UserLoggedOut{session_id: session_id} ->
-        [%{event: :logged_out, session_id: session_id, at: recorded.created_at}]
-
-      _other ->
-        []
-    end
-  end
-
-  # Event payloads round-trip as structs through the in-memory test adapter but
-  # as strings through the JSON serializer used in dev and prod.
-  defp coerce_datetime(%DateTime{} = dt), do: dt
-
-  defp coerce_datetime(value) when is_binary(value) do
-    {:ok, dt, _offset} = DateTime.from_iso8601(value)
-    dt
-  end
-
-  defp delete_expired_sessions do
-    Repo.delete_all(from s in Session, where: s.expires_at <= ^DateTime.utc_now())
   end
 
   ## Erasure

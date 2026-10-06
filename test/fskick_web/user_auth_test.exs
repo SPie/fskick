@@ -55,14 +55,6 @@ defmodule FskickWeb.UserAuthTest do
       assert "users_sessions:" <> _ = get_session(conn, :live_socket_id)
     end
 
-    test "records the login on the user's stream", %{conn: conn} do
-      user = user_fixture()
-
-      UserAuth.log_in_user(conn, user)
-
-      assert [%{event: :logged_in}] = Users.list_login_history(user.id)
-    end
-
     test "redirects to the stored return path", %{conn: conn} do
       user = user_fixture()
 
