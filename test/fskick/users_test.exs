@@ -7,8 +7,8 @@ defmodule Fskick.UsersTest do
   alias Fskick.Players
   alias Fskick.Users
   alias Fskick.Users.CryptoKey
+  alias Fskick.Users.Session
   alias Fskick.Users.User
-  alias Fskick.Users.UserToken
 
   describe "register_user_for_player/3" do
     test "registers a user linked to an existing player" do
@@ -105,16 +105,76 @@ defmodule Fskick.UsersTest do
     end
   end
 
-  describe "session tokens" do
-    test "generate, look up, and delete a session token" do
+  describe "sessions" do
+    test "start, look up, and end a session" do
       user = user_fixture()
 
-      token = Users.generate_user_session_token(user)
+      assert {:ok, token} = Users.start_session(user)
       assert %User{id: id} = Users.get_user_by_session_token(token)
       assert id == user.id
 
-      :ok = Users.delete_user_session_token(token)
+      assert :ok = Users.end_session(token)
       refute Users.get_user_by_session_token(token)
+    end
+
+    test "the stored row holds a hash, not the token itself" do
+      user = user_fixture()
+      {:ok, token} = Users.start_session(user)
+
+      session = Repo.one(from s in Session, where: s.user_id == ^user.id)
+
+      refute session.token_hash == token
+      assert session.token_hash == :crypto.hash(:sha256, token)
+    end
+
+    test "a session expires one day after it starts" do
+      user = user_fixture()
+      {:ok, _token} = Users.start_session(user)
+
+      session = Repo.one(from s in Session, where: s.user_id == ^user.id)
+      expected = DateTime.add(DateTime.utc_now(), 1, :day)
+
+      assert_in_delta DateTime.diff(session.expires_at, expected, :second), 0, 5
+    end
+
+    test "an expired session no longer resolves to its user" do
+      user = user_fixture()
+      {:ok, token} = Users.start_session(user)
+
+      Repo.update_all(from(s in Session, where: s.user_id == ^user.id),
+        set: [expires_at: DateTime.add(DateTime.utc_now(), -1, :second)]
+      )
+
+      refute Users.get_user_by_session_token(token)
+    end
+
+    test "starting a session prunes other sessions that have expired" do
+      user = user_fixture()
+      {:ok, stale} = Users.start_session(user)
+
+      Repo.update_all(from(s in Session, where: s.user_id == ^user.id),
+        set: [expires_at: DateTime.add(DateTime.utc_now(), -1, :second)]
+      )
+
+      {:ok, _fresh} = Users.start_session(user)
+
+      assert Repo.aggregate(from(s in Session, where: s.user_id == ^user.id), :count) == 1
+      refute Users.get_user_by_session_token(stale)
+    end
+
+    test "ending an unknown token is a no-op" do
+      assert :ok = Users.end_session("not-a-real-token")
+    end
+
+    test "ending one session leaves the user's other sessions alone" do
+      user = user_fixture()
+      {:ok, first} = Users.start_session(user)
+      {:ok, second} = Users.start_session(user)
+
+      assert :ok = Users.end_session(first)
+
+      refute Users.get_user_by_session_token(first)
+      assert Users.get_user_by_session_token(second)
     end
   end
 
@@ -129,14 +189,14 @@ defmodule Fskick.UsersTest do
       refute Users.get_user_by_email_and_password("alice@example.com", "hello world!")
     end
 
-    test "session tokens cascade away with the user row" do
+    test "sessions cascade away with the user row" do
       user = user_fixture()
-      token = Users.generate_user_session_token(user)
+      {:ok, token} = Users.start_session(user)
 
       assert :ok = Users.delete_user_data(user.id)
 
       refute Users.get_user_by_session_token(token)
-      assert Repo.aggregate(from(t in UserToken, where: t.user_id == ^user.id), :count) == 0
+      assert Repo.aggregate(from(s in Session, where: s.user_id == ^user.id), :count) == 0
     end
 
     test "leaves the linked player untouched" do

@@ -8,7 +8,10 @@ defmodule FskickWeb.Endpoint do
     store: :cookie,
     key: "_fskick_key",
     signing_salt: "P51zXwRZ",
-    same_site: "Lax"
+    same_site: "Lax",
+    # Matches the session lifetime in `Fskick.Users.Session`, so the browser
+    # stops sending a token that can no longer be valid.
+    max_age: 60 * 60 * 24
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
