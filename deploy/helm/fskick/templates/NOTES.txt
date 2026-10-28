@@ -1,0 +1,11 @@
+fskick {{ include "fskick.imageTag" . }} deployed to namespace {{ .Release.Namespace }}.
+
+Watch the rollout:
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "fskick.fullname" . }}
+
+Migration output of a pod:
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "fskick.fullname" . }} -c migrate
+{{- if .Values.ingress.enabled }}
+
+App: http://{{ .Values.host }}/
+{{- end }}

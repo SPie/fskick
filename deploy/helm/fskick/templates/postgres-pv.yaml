@@ -1,0 +1,25 @@
+{{- with .Values.postgres.storage.hostPath }}
+# Static volume pointing at a directory on the node — the local stand-in for
+# the docker compose `postgres_data` volume. PersistentVolumes are
+# cluster-scoped, hence the namespace in the name.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "fskick.postgresName" $ }}-{{ $.Release.Namespace }}
+  labels:
+    {{- include "fskick.labels" $ | nindent 4 }}
+  annotations:
+    # Survives `helm uninstall`; the data is not reproducible.
+    helm.sh/resource-policy: keep
+spec:
+  capacity:
+    storage: {{ $.Values.postgres.storage.size }}
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  # Empty class: only claims that name this volume explicitly can bind it.
+  storageClassName: ""
+  hostPath:
+    path: {{ . }}
+    type: Directory
+{{- end }}

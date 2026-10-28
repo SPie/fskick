@@ -1,0 +1,14 @@
+# Stable DNS name `<release>-postgres` — the `postgres` host in compose.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "fskick.postgresName" . }}
+  labels:
+    {{- include "fskick.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "fskick.selectorLabels" (dict "ctx" . "component" "postgres") | nindent 4 }}
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

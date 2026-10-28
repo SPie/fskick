@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fskick.fullname" . }}
+  labels:
+    {{- include "fskick.labels" . | nindent 4 }}
+    {{- include "fskick.selectorLabels" (dict "ctx" . "component" "app") | nindent 4 }}
+spec:
+  replicas: {{ .Values.app.replicaCount }}
+  # A new pod must stay Ready this long before the rollout continues.
+  minReadySeconds: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Start one new pod first, never drop below the desired count — old
+      # pods keep serving until their replacement passes readiness.
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "fskick.selectorLabels" (dict "ctx" . "component" "app") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "fskick.labels" . | nindent 8 }}
+        {{- include "fskick.selectorLabels" (dict "ctx" . "component" "app") | nindent 8 }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.app.terminationGracePeriodSeconds }}
+      initContainers:
+        # compose: depends_on postgres (service_healthy)
+        - name: wait-for-postgres
+          image: {{ .Values.postgres.image }}
+          command:
+            - sh
+            - -c
+            - until pg_isready -h {{ include "fskick.postgresName" . }} -p 5432; do sleep 2; done
+        # compose: the `migrate` service (service_completed_successfully).
+        # Applies pending schema migrations; a no-op when there are none.
+        # During a rollout the old pods are still running against the
+        # migrated schema, so migrations must be backward-compatible.
+        - name: migrate
+          image: {{ include "fskick.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/app/bin/migrate"]
+          env:
+            {{- include "fskick.appEnv" . | nindent 12 }}
+      containers:
+        - name: app
+          image: {{ include "fskick.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- include "fskick.appEnv" . | nindent 12 }}
+            - name: PORT
+              value: {{ .Values.app.port | quote }}
+            - name: APP_VERSION
+              value: {{ include "fskick.imageTag" . | quote }}
+            # Clustering: rel/env.sh.eex names the node fskick@$POD_IP and
+            # DNSCluster finds the other pods through the headless Service.
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: DNS_CLUSTER_QUERY
+              value: "{{ include "fskick.fullname" . }}-headless.{{ .Release.Namespace }}.svc.cluster.local"
+            {{- include "fskick.secretEnv" (dict "ctx" . "name" "RELEASE_COOKIE") | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.port }}
+          # Gives boot (and projector catch-up) up to ~2 minutes before the
+          # other probes take over.
+          startupProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 2
+            failureThreshold: 60
+          # Not Ready → removed from the Service; the rollout waits on this.
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            failureThreshold: 2
+          # Only checks the VM, so a database outage doesn't restart pods.
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              # Endpoint removal propagates asynchronously; keep serving
+              # until load balancers have stopped sending new requests.
+              exec:
+                command: ["sleep", {{ .Values.app.preStopSleepSeconds | quote }}]
+          resources:
+            {{- toYaml .Values.app.resources | nindent 12 }}

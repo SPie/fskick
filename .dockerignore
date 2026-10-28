@@ -14,3 +14,4 @@ priv/static/cache_manifest.json
 .env.*
 !.env.example
 .DS_Store
+deploy

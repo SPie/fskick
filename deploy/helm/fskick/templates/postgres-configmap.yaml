@@ -1,0 +1,17 @@
+# Same script as priv/postgres/init-eventstore-db.sh (mounted by docker
+# compose). The postgres image runs it only when the data directory is empty,
+# so it is skipped when the existing compose data is reused.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "fskick.postgresName" . }}-init
+  labels:
+    {{- include "fskick.labels" . | nindent 4 }}
+data:
+  init-eventstore-db.sh: |
+    #!/bin/bash
+    set -e
+
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+        CREATE DATABASE "$EVENT_STORE_DB";
+    EOSQL

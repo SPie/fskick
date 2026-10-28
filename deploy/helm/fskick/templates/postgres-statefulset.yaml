@@ -1,0 +1,64 @@
+# One Postgres instance. A StatefulSet (rather than a Deployment) guarantees
+# the old pod is gone before a replacement starts, so two servers never open
+# the same data directory.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "fskick.postgresName" . }}
+  labels:
+    {{- include "fskick.labels" . | nindent 4 }}
+    {{- include "fskick.selectorLabels" (dict "ctx" . "component" "postgres") | nindent 4 }}
+spec:
+  serviceName: {{ include "fskick.postgresName" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "fskick.selectorLabels" (dict "ctx" . "component" "postgres") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "fskick.labels" . | nindent 8 }}
+        {{- include "fskick.selectorLabels" (dict "ctx" . "component" "postgres") | nindent 8 }}
+      annotations:
+        checksum/init: {{ include (print $.Template.BasePath "/postgres-configmap.yaml") . | sha256sum }}
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          env:
+            {{- range list "POSTGRES_USER" "POSTGRES_PASSWORD" "POSTGRES_DB" "EVENT_STORE_DB" }}
+            {{- include "fskick.secretEnv" (dict "ctx" $ "name" .) | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          # The compose healthcheck.
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "fskick.postgresName" . }}-data
+        - name: init
+          configMap:
+            name: {{ include "fskick.postgresName" . }}-init
+            defaultMode: 0755
