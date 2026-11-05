@@ -1,10 +1,11 @@
 defmodule Fskick.Games.Projectors.PlayerStats do
   @moduledoc """
-  Projects `GameCreated` events into the per-(season, player) read models
-  that back the rankings tables:
+  Projects `GameCreated` and `PlayerAddedToGame` events into the
+  per-(season, player) read models that back the rankings tables:
 
   - `player_stats` — per-(season, player) counters (`wins`, `games`)
-  - `game_counts` — per-season game total
+  - `game_counts` — per-season game total, advanced by `GameCreated`
+    only: adding a player to an existing game does not create a game
 
   A `:draw` outcome counts as a win for both teams, matching the product
   rule that a draw is treated like a win in the rankings.
@@ -26,6 +27,7 @@ defmodule Fskick.Games.Projectors.PlayerStats do
     name: "Fskick.Games.Projectors.PlayerStats.v2"
 
   alias Fskick.Games.Events.GameCreated
+  alias Fskick.Games.Events.PlayerAddedToGame
   alias Fskick.Games.GameCount
   alias Fskick.Games.PlayerStats
 
@@ -43,6 +45,19 @@ defmodule Fskick.Games.Projectors.PlayerStats do
       conflict_target: :season_id
     )
   end)
+
+  # Adding a player to an existing game is not a new game, so
+  # `game_counts` is deliberately left alone here.
+  project(%PlayerAddedToGame{} = event, _metadata, fn multi ->
+    team = team_tag(event.team)
+
+    upsert_team(multi, event.season_id, team, [event.player_id], win_inc(event.outcome, team))
+  end)
+
+  # The event carries the team as a string because that is its JSON wire
+  # format; the atoms below are this projector's internal vocabulary.
+  defp team_tag("team_a"), do: :team_a
+  defp team_tag("team_b"), do: :team_b
 
   defp win_inc("team_a_won", :team_a), do: 1
   defp win_inc("team_b_won", :team_b), do: 1

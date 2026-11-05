@@ -1,0 +1,17 @@
+# No cluster IP: DNS returns one A record per app pod, which is what
+# DNSCluster (DNS_CLUSTER_QUERY) resolves to find nodes to connect to.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "fskick.fullname" . }}-headless
+  labels:
+    {{- include "fskick.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  # Let a booting pod join the cluster before it is Ready.
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "fskick.selectorLabels" (dict "ctx" . "component" "app") | nindent 4 }}
+  ports:
+    - name: epmd
+      port: 4369

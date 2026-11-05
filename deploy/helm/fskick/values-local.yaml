@@ -1,0 +1,15 @@
+# Overrides for the local k3d cluster — see README.md.
+host: localhost
+
+image:
+  # Images are loaded with `k3d image import`, never pulled from a registry.
+  pullPolicy: Never
+
+ingress:
+  className: traefik
+
+postgres:
+  storage:
+    # Where `k3d cluster create --volume fskick-k8s-pgdata:...` mounts the
+    # copy of the docker compose volume inside the k3d node.
+    hostPath: /var/lib/fskick/postgres

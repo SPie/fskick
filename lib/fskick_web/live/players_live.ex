@@ -28,10 +28,15 @@ defmodule FskickWeb.PlayersLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
       <h2 class="text-center text-md md:text-2xl font-bold">Players</h2>
       <div>
-        <.player_stats_table stats={@stats} games_count={@games_count} sort={@sort} />
+        <.player_stats_table
+          stats={@stats}
+          games_count={@games_count}
+          sort={@sort}
+          highlight_player_id={highlight_id(@current_scope)}
+        />
       </div>
     </Layouts.app>
     """

@@ -24,6 +24,14 @@ defmodule FskickWeb.Layouts do
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
 
+  attr :current_scope, :map,
+    required: true,
+    doc: """
+    the current authentication scope, or nil for anonymous visitors. Required
+    so that a LiveView which forgets to pass it fails at compile time rather
+    than silently rendering the logged-out nav to a signed-in user.
+    """
+
   slot :inner_block, required: true
 
   def app(assigns) do
@@ -49,6 +57,16 @@ defmodule FskickWeb.Layouts do
               <.link navigate={~p"/"} class="pr-3 py-2 rounded-md">Seasons</.link>
               <.link navigate={~p"/players"} class="pr-3 py-2 rounded-md">Players</.link>
               <.link navigate="/streaks" class="pr-3 py-2 rounded-md">Streaks</.link>
+            </div>
+            <div class="ml-auto flex items-center space-x-3 md:px-5 px-3 text-sm md:text-lg whitespace-nowrap">
+              <%= if @current_scope && @current_scope.user do %>
+                <.link navigate={~p"/users/profile"} class="py-2 rounded-md">Profile</.link>
+                <.link href={~p"/users/log-out"} method="delete" class="py-2 rounded-md">
+                  Log out
+                </.link>
+              <% else %>
+                <.link navigate={~p"/users/log-in"} class="py-2 rounded-md">Log in</.link>
+              <% end %>
             </div>
           </div>
         </nav>

@@ -57,4 +57,32 @@ defmodule Fskick.CQRS.ProjectionTest do
                Projection.await(Player, id, timeout: 50, match: &(&1.name == "Bob"))
     end
   end
+
+  describe "await_absence/3" do
+    test "returns :ok when the row is already gone" do
+      assert :ok = Projection.await_absence(Player, Ecto.UUID.generate())
+    end
+
+    test "returns :ok once the row disappears before the timeout" do
+      id = Ecto.UUID.generate()
+      Repo.insert!(%Player{id: id, name: "Alice", created_at: DateTime.utc_now()})
+
+      task =
+        Task.async(fn ->
+          Process.sleep(50)
+          Repo.delete_all(from(p in Player, where: p.id == ^id))
+        end)
+
+      assert :ok = Projection.await_absence(Player, id, timeout: 1_000)
+
+      Task.await(task)
+    end
+
+    test "returns {:error, :projection_timeout} while the row is still there" do
+      id = Ecto.UUID.generate()
+      Repo.insert!(%Player{id: id, name: "Alice", created_at: DateTime.utc_now()})
+
+      assert {:error, :projection_timeout} = Projection.await_absence(Player, id, timeout: 50)
+    end
+  end
 end

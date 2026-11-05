@@ -1,0 +1,9 @@
+apiVersion: v2
+name: fskick
+description: fskick Phoenix app with its PostgreSQL database
+type: application
+# Version of the chart itself — bump when templates or values change.
+version: 0.1.0
+# The released app version: the git tag without the "v". Also the default
+# image tag (overridable with `--set image.tag=...` for in-between builds).
+appVersion: "3.2.0"

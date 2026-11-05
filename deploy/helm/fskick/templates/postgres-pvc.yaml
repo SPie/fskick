@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "fskick.postgresName" . }}-data
+  labels:
+    {{- include "fskick.labels" . | nindent 4 }}
+  annotations:
+    # Survives `helm uninstall`; the data is not reproducible.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.postgres.storage.size }}
+  {{- if .Values.postgres.storage.hostPath }}
+  storageClassName: ""
+  volumeName: {{ include "fskick.postgresName" . }}-{{ .Release.Namespace }}
+  {{- else if .Values.postgres.storage.storageClassName }}
+  storageClassName: {{ .Values.postgres.storage.storageClassName }}
+  {{- end }}

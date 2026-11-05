@@ -30,7 +30,7 @@ defmodule FskickWeb.StreaksLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
       <h2 class="text-center text-md md:text-2xl font-bold">Streaks</h2>
 
       <div class="mx-auto w-4/5">

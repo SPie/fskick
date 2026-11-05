@@ -13,6 +13,10 @@ defmodule FskickWeb.Components.PlayerStatsTable do
   attr :count_label, :string, default: "Wins"
   attr :ratio_label, :string, default: "Win Ratio"
 
+  attr :highlight_player_id, :string,
+    default: nil,
+    doc: "player_id whose row should be highlighted (the logged-in user's player)"
+
   def player_stats_table(assigns) do
     ~H"""
     <table class="mx-auto text-xs md:text-base table-fixed">
@@ -37,7 +41,10 @@ defmodule FskickWeb.Components.PlayerStatsTable do
         </tr>
       </thead>
       <tbody>
-        <tr :for={stat <- @stats}>
+        <tr
+          :for={stat <- @stats}
+          class={stat.player_id == @highlight_player_id && "bg-gray-700 font-bold"}
+        >
           <td class="border-b border-gray-500 text-left px-1 md:px-6 py-3">{stat.position}</td>
           <td class="border-b border-gray-500 text-left px-1 md:px-6 py-3 underline">
             <.link navigate={"/players/" <> stat.player_id}>{stat.name}</.link>
@@ -77,6 +84,14 @@ defmodule FskickWeb.Components.PlayerStatsTable do
     </th>
     """
   end
+
+  @doc """
+  The player_id to highlight for the given auth scope — the logged-in user's
+  linked player, or `nil` for anonymous visitors.
+  """
+  def highlight_id(nil), do: nil
+  def highlight_id(%{user: nil}), do: nil
+  def highlight_id(%{user: %{player_id: player_id}}), do: player_id
 
   defp format_float(value) when is_float(value) do
     :erlang.float_to_binary(value, decimals: 2)

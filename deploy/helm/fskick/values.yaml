@@ -1,0 +1,60 @@
+# Public host name: used as PHX_HOST (URL generation, websocket origin check)
+# and as the Ingress host.
+host: fskick.com
+
+# Name of a Secret created outside the chart (see README.md). Required keys:
+# POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, EVENT_STORE_DB,
+# SECRET_KEY_BASE, RELEASE_COOKIE.
+existingSecret: fskick-secrets
+
+image:
+  repository: fskick
+  # Defaults to the chart's appVersion (the release). Override with a unique
+  # tag for in-between builds (e.g. the git short SHA) — a new tag changes the
+  # pod spec, which is what triggers a rolling update.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+app:
+  # At least 2 so one pod keeps serving while another restarts. Rollouts are
+  # zero-downtime with 1 as well, thanks to maxSurge/maxUnavailable below.
+  replicaCount: 2
+  port: 4000
+  poolSize: 10
+  eventStorePoolSize: 10
+  # Delay before SIGTERM, so the pod is removed from the
+  # Service endpoints before it stops accepting connections.
+  preStopSleepSeconds: 5
+  terminationGracePeriodSeconds: 30
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+ingress:
+  enabled: true
+  # Empty uses the cluster's default IngressClass.
+  className: ""
+  annotations: {}
+  # e.g. [{ secretName: fskick-tls, hosts: [fskick.example.com] }]
+  tls: []
+
+postgres:
+  # Must stay on the major version that initialised the data directory.
+  image: postgres:17-alpine
+  storage:
+    size: 5Gi
+    # Empty uses the cluster's default StorageClass. Ignored with hostPath.
+    storageClassName: ""
+    # When set, the chart creates a static hostPath PersistentVolume at this
+    # path on the node and binds the claim to it (used locally to reuse the
+    # data from docker compose). Leave empty to provision dynamically.
+    hostPath: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi

@@ -126,7 +126,7 @@ defmodule FskickWeb.PlayerDetailLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
       <h2 class="text-center text-md md:text-2xl font-bold">{@player.name}</h2>
 
       <div class="mx-auto w-4/5">
@@ -134,7 +134,12 @@ defmodule FskickWeb.PlayerDetailLive do
           <h3 class="text-left text-sm md:text-xl font-bold">Stats</h3>
 
           <div>
-            <.player_stats_table stats={@stats} games_count={@games_count} sort={@sort} />
+            <.player_stats_table
+              stats={@stats}
+              games_count={@games_count}
+              sort={@sort}
+              highlight_player_id={highlight_id(@current_scope)}
+            />
           </div>
         </div>
 
@@ -172,6 +177,7 @@ defmodule FskickWeb.PlayerDetailLive do
               sort_event="favorite_sort"
               count_label={if @team_outcome == :win, do: "Wins", else: "Losses"}
               ratio_label={if @team_outcome == :win, do: "Win Ratio", else: "Loss Ratio"}
+              highlight_player_id={highlight_id(@current_scope)}
             />
           </div>
         </div>
@@ -193,6 +199,7 @@ defmodule FskickWeb.PlayerDetailLive do
               sort_event="opponents_sort"
               count_label={if @opp_outcome == :win, do: "Wins", else: "Losses"}
               ratio_label={if @opp_outcome == :win, do: "Win Ratio", else: "Loss Ratio"}
+              highlight_player_id={highlight_id(@current_scope)}
             />
           </div>
         </div>
