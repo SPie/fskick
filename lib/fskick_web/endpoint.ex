@@ -18,6 +18,9 @@ defmodule FskickWeb.Endpoint do
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
 
+  # Kubernetes probes — before sessions/router; see the module docs.
+  plug FskickWeb.Plugs.Health
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # When code reloading is disabled (e.g., in production),
