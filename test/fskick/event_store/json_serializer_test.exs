@@ -3,6 +3,7 @@ defmodule Fskick.EventStore.JsonSerializerTest do
 
   alias Fskick.EventStore.JsonSerializer
   alias Fskick.Users.Crypto
+  alias Fskick.Users.Events.UserEmailChanged
   alias Fskick.Users.Events.UserRegistered
 
   @type_config [type: "Elixir.Fskick.Users.Events.UserRegistered"]
@@ -47,6 +48,20 @@ defmodule Fskick.EventStore.JsonSerializerTest do
 
     assert %UserRegistered{email: "[redacted]", hashed_password: "$argon2id$hash"} =
              JsonSerializer.deserialize(json, @type_config)
+  end
+
+  test "crypto-shreds the email of UserEmailChanged", %{user_id: user_id} do
+    type_config = [type: "Elixir.Fskick.Users.Events.UserEmailChanged"]
+    json = JsonSerializer.serialize(%UserEmailChanged{user_id: user_id, email: "new@example.com"})
+
+    refute Jason.decode!(json)["email"] == "new@example.com"
+
+    assert %UserEmailChanged{email: "new@example.com"} =
+             JsonSerializer.deserialize(json, type_config)
+
+    {:ok, _} = Crypto.delete_key(user_id)
+
+    assert %UserEmailChanged{email: "[redacted]"} = JsonSerializer.deserialize(json, type_config)
   end
 
   test "leaves non-PII events untouched" do

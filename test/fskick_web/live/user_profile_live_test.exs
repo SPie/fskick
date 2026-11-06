@@ -21,6 +21,17 @@ defmodule FskickWeb.UserProfileLiveTest do
       assert has_element?(view, ~s|a[href="/players/#{player.id}"]|, "Alice")
     end
 
+    test "has a button at the bottom leading to the edit page", %{conn: conn} do
+      user = user_fixture()
+      {:ok, view, _html} = conn |> log_in_user(user) |> live(~p"/users/profile")
+
+      assert has_element?(view, "dl ~ div a[href='/users/profile/edit']", "Edit profile")
+
+      view |> element("a", "Edit profile") |> render_click()
+
+      assert_redirect(view, ~p"/users/profile/edit")
+    end
+
     test "the nav shows Profile and Log out for authenticated users", %{conn: conn} do
       user = user_fixture()
       {:ok, view, _html} = conn |> log_in_user(user) |> live(~p"/users/profile")

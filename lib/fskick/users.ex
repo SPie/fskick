@@ -20,13 +20,18 @@ defmodule Fskick.Users do
   alias Fskick.App
   alias Fskick.CQRS.Projection
   alias Fskick.Players
+  alias Fskick.Players.Commands.RenamePlayer
   alias Fskick.Repo
+  alias Fskick.Users.Commands.ChangeUserEmail
+  alias Fskick.Users.Commands.ChangeUserPassword
   alias Fskick.Users.Commands.DeleteUserData
   alias Fskick.Users.Commands.LogInUser
   alias Fskick.Users.Commands.LogOutUser
   alias Fskick.Users.Commands.RegisterUser
   alias Fskick.Users.Crypto
+  alias Fskick.Users.Email
   alias Fskick.Users.Password
+  alias Fskick.Users.ProfileForm
   alias Fskick.Users.Session
   alias Fskick.Users.User
 
@@ -92,9 +97,59 @@ defmodule Fskick.Users do
   """
   def get_user_by_email_and_password(email, password)
       when is_binary(email) and is_binary(password) do
-    user = Repo.get_by(User, email: normalize_email(email))
+    user = Repo.get_by(User, email: Email.normalize(email))
 
     if Password.valid?(password, user && user.hashed_password), do: user
+  end
+
+  ## Profile
+
+  @doc "A changeset for the profile form, for use with `to_form/2`."
+  def change_profile(%User{} = user, player, attrs \\ %{}) do
+    ProfileForm.changeset(user, player, attrs)
+  end
+
+  @doc """
+  Update a user's email, password and linked player's name.
+
+  Everything is validated before anything is dispatched, and only what changed
+  is dispatched. The changes span two aggregates, so they are not atomic: a
+  failure part-way keeps the changes already applied. Repeating the update is
+  safe, because those no longer count as changes.
+
+  Returns `{:ok, %User{}}` on success, or:
+  - `{:error, %Ecto.Changeset{}}` when the input is invalid
+  - `{:error, :projection_timeout}` if the read model does not catch up in time
+  - `{:error, reason}` for dispatch failures
+  """
+  def update_profile(%User{} = user, attrs) do
+    with {:ok, commands} <- ProfileForm.commands(user, get_linked_player(user), attrs),
+         :ok <- apply_profile_commands(commands) do
+      {:ok, Repo.get!(User, user.id)}
+    end
+  end
+
+  defp apply_profile_commands(commands) do
+    Enum.reduce_while(commands, :ok, fn command, :ok ->
+      case apply_profile_command(command) do
+        {:ok, _struct} -> {:cont, :ok}
+        {:error, _reason} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp apply_profile_command(%RenamePlayer{} = command), do: Players.rename_player(command)
+
+  defp apply_profile_command(%ChangeUserEmail{user_id: user_id, email: email} = command) do
+    with :ok <- App.dispatch(command) do
+      Projection.await(User, user_id, match: &(&1.email == email))
+    end
+  end
+
+  defp apply_profile_command(%ChangeUserPassword{user_id: user_id} = command) do
+    with :ok <- App.dispatch(command) do
+      Projection.await(User, user_id, match: &(&1.hashed_password == command.hashed_password))
+    end
   end
 
   ## Sessions
@@ -206,6 +261,4 @@ defmodule Fskick.Users do
       :ok
     end
   end
-
-  defp normalize_email(email), do: email |> String.trim() |> String.downcase()
 end

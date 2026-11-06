@@ -2,13 +2,17 @@ defmodule Fskick.Users.Aggregates.UserTest do
   use ExUnit.Case, async: true
 
   alias Fskick.Users.Aggregates.User
+  alias Fskick.Users.Commands.ChangeUserEmail
+  alias Fskick.Users.Commands.ChangeUserPassword
   alias Fskick.Users.Commands.DeleteUserData
   alias Fskick.Users.Commands.LogInUser
   alias Fskick.Users.Commands.LogOutUser
   alias Fskick.Users.Commands.RegisterUser
   alias Fskick.Users.Events.UserDataDeleted
+  alias Fskick.Users.Events.UserEmailChanged
   alias Fskick.Users.Events.UserLoggedIn
   alias Fskick.Users.Events.UserLoggedOut
+  alias Fskick.Users.Events.UserPasswordChanged
   alias Fskick.Users.Events.UserRegistered
 
   defp registered(user_id \\ Ecto.UUID.generate()) do
@@ -38,6 +42,47 @@ defmodule Fskick.Users.Aggregates.UserTest do
 
     test "rejects re-registration" do
       assert {:error, :already_created} = User.execute(registered(), %RegisterUser{})
+    end
+  end
+
+  describe "execute/2 with ChangeUserEmail" do
+    test "emits UserEmailChanged for a registered user" do
+      id = Ecto.UUID.generate()
+
+      assert %UserEmailChanged{user_id: ^id, email: "new@example.com"} =
+               User.execute(registered(id), %ChangeUserEmail{
+                 user_id: id,
+                 email: "new@example.com"
+               })
+    end
+
+    test "rejects an unknown user" do
+      assert {:error, :not_found} = User.execute(%User{}, %ChangeUserEmail{})
+    end
+  end
+
+  describe "execute/2 with ChangeUserPassword" do
+    test "emits UserPasswordChanged for a registered user" do
+      id = Ecto.UUID.generate()
+
+      assert %UserPasswordChanged{user_id: ^id, hashed_password: "new hash"} =
+               User.execute(registered(id), %ChangeUserPassword{
+                 user_id: id,
+                 hashed_password: "new hash"
+               })
+    end
+
+    test "rejects an unknown user" do
+      assert {:error, :not_found} = User.execute(%User{}, %ChangeUserPassword{})
+    end
+  end
+
+  describe "apply/2 with profile changes" do
+    test "keeps the email and password hash out of the aggregate state" do
+      state = registered()
+
+      assert ^state = User.apply(state, %UserEmailChanged{email: "new@example.com"})
+      assert ^state = User.apply(state, %UserPasswordChanged{hashed_password: "new hash"})
     end
   end
 

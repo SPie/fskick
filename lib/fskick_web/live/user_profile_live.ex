@@ -28,6 +28,10 @@ defmodule FskickWeb.UserProfileLive do
             <dd :if={is_nil(@player)} class="text-gray-400">No linked player</dd>
           </div>
         </dl>
+
+        <div class="mt-6">
+          <.button variant="link" navigate={~p"/users/profile/edit"}>Edit profile</.button>
+        </div>
       </div>
     </Layouts.app>
     """

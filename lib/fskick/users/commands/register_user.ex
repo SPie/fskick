@@ -15,9 +15,8 @@ defmodule Fskick.Users.Commands.RegisterUser do
 
   alias Fskick.Players.Player
   alias Fskick.Repo
+  alias Fskick.Users.Email
   alias Fskick.Users.User
-
-  @email_regex ~r/^[^\s]+@[^\s]+\.[^\s]+$/
 
   @primary_key false
   embedded_schema do
@@ -35,10 +34,9 @@ defmodule Fskick.Users.Commands.RegisterUser do
   def new(attrs) do
     %__MODULE__{}
     |> cast(attrs, [:user_id, :player_id, :email, :hashed_password])
-    |> update_change(:email, &normalize_email/1)
+    |> update_change(:email, &Email.normalize/1)
     |> validate_required([:user_id, :player_id, :email, :hashed_password])
-    |> validate_format(:email, @email_regex, message: "must be a valid email")
-    |> validate_length(:email, max: 160)
+    |> Email.validate()
     |> validate_email_available()
     |> validate_player_exists()
     |> apply_action(:insert)
@@ -75,9 +73,4 @@ defmodule Fskick.Users.Commands.RegisterUser do
         changeset
     end
   end
-
-  defp normalize_email(nil), do: nil
-
-  defp normalize_email(value) when is_binary(value),
-    do: value |> String.trim() |> String.downcase()
 end

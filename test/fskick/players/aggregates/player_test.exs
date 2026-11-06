@@ -3,7 +3,9 @@ defmodule Fskick.Players.Aggregates.PlayerTest do
 
   alias Fskick.Players.Aggregates.Player
   alias Fskick.Players.Commands.CreatePlayer
+  alias Fskick.Players.Commands.RenamePlayer
   alias Fskick.Players.Events.PlayerCreated
+  alias Fskick.Players.Events.PlayerRenamed
 
   describe "execute/2" do
     test "emits PlayerCreated when aggregate is uninitialised" do
@@ -22,7 +24,36 @@ defmodule Fskick.Players.Aggregates.PlayerTest do
     end
   end
 
+  describe "execute/2 with RenamePlayer" do
+    test "emits PlayerRenamed for a new name" do
+      id = Ecto.UUID.generate()
+      state = %Player{player_id: id, name: "Alice"}
+
+      assert %PlayerRenamed{player_id: ^id, name: "Alicia"} =
+               Player.execute(state, %RenamePlayer{player_id: id, name: "Alicia"})
+    end
+
+    test "emits nothing for the current name" do
+      id = Ecto.UUID.generate()
+      state = %Player{player_id: id, name: "Alice"}
+
+      assert [] = Player.execute(state, %RenamePlayer{player_id: id, name: "Alice"})
+    end
+
+    test "rejects an unknown player" do
+      assert {:error, :not_found} = Player.execute(%Player{}, %RenamePlayer{name: "Alice"})
+    end
+  end
+
   describe "apply/2" do
+    test "PlayerRenamed updates the name" do
+      id = Ecto.UUID.generate()
+      state = %Player{player_id: id, name: "Alice"}
+
+      assert %Player{player_id: ^id, name: "Alicia"} =
+               Player.apply(state, %PlayerRenamed{player_id: id, name: "Alicia"})
+    end
+
     test "PlayerCreated sets id and name on the aggregate" do
       id = Ecto.UUID.generate()
       event = %PlayerCreated{player_id: id, name: "Alice"}
