@@ -1,11 +1,8 @@
 defmodule FskickWeb.UserProfileLive do
   use FskickWeb, :live_view
 
-  alias Fskick.Users
-
   def mount(_params, _session, socket) do
-    user = socket.assigns.current_scope.user
-    {:ok, assign(socket, user: user, player: Users.get_linked_player(user))}
+    {:ok, assign(socket, user: socket.assigns.current_scope.user)}
   end
 
   def render(assigns) do
@@ -22,10 +19,11 @@ defmodule FskickWeb.UserProfileLive do
 
           <div>
             <dt class="text-sm font-semibold text-gray-400">Player</dt>
-            <dd :if={@player}>
-              <.link class="underline" navigate={~p"/players/#{@player.id}"}>{@player.name}</.link>
+            <dd>
+              <.link class="underline" navigate={~p"/players/#{@user.player.id}"}>
+                {@user.player.name}
+              </.link>
             </dd>
-            <dd :if={is_nil(@player)} class="text-gray-400">No linked player</dd>
           </div>
         </dl>
 

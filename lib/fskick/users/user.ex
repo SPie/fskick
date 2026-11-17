@@ -4,6 +4,7 @@ defmodule Fskick.Users.User do
 
   Written by `Fskick.Users.Projectors.User` in response to user events. Used
   for login lookups and uniqueness checks; not used for user-input casting.
+  Every user belongs to exactly one player (a player need not have a user).
   On erasure the projector deletes the row outright — keeping a scrubbed one
   would still record, via `player_id`, that an identified person had an
   account. The erasure guarantee itself comes from destroying the user's
@@ -14,7 +15,7 @@ defmodule Fskick.Users.User do
 
   @primary_key {:id, :binary_id, autogenerate: false}
   schema "users" do
-    field :player_id, :binary_id
+    belongs_to :player, Fskick.Players.Player, type: :binary_id
     field :email, :string
     field :hashed_password, :string, redact: true
     field :created_at, :utc_datetime_usec

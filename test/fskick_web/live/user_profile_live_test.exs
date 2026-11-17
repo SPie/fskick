@@ -4,8 +4,6 @@ defmodule FskickWeb.UserProfileLiveTest do
   import Phoenix.LiveViewTest
   import Fskick.UsersFixtures
 
-  alias Fskick.Users
-
   describe "profile page" do
     test "redirects anonymous visitors to log in", %{conn: conn} do
       assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(conn, ~p"/users/profile")
@@ -13,7 +11,7 @@ defmodule FskickWeb.UserProfileLiveTest do
 
     test "shows the user's email and linked player", %{conn: conn} do
       user = user_fixture(%{email: "alice@example.com", player_name: "Alice"})
-      player = Users.get_linked_player(user)
+      player = user.player
 
       {:ok, view, html} = conn |> log_in_user(user) |> live(~p"/users/profile")
 

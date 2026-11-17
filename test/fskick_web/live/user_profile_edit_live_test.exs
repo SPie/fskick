@@ -81,7 +81,7 @@ defmodule FskickWeb.UserProfileEditLiveTest do
 
       submit_and_follow(view, conn, %{player_name: "Alicia"})
 
-      assert Users.get_linked_player(user).name == "Alicia"
+      assert Users.get_user(user.id).player.name == "Alicia"
       assert Users.get_user_by_email_and_password("alice@example.com", "hello world!")
     end
 
@@ -89,6 +89,36 @@ defmodule FskickWeb.UserProfileEditLiveTest do
       {:ok, view, _html} = live(conn, ~p"/users/profile/edit")
 
       submit_and_follow(view, conn, %{})
+    end
+  end
+
+  describe "a failure after validation" do
+    test "shows the saved profile and asks to check it", %{conn: conn} do
+      user = streamless_user_fixture(%{email: "carol@example.com", player_name: "Carol"})
+      {:ok, view, _html} = conn |> log_in_streamless(user) |> live(~p"/users/profile/edit")
+
+      submit(view, %{email: "new@example.com", player_name: "Caroline"})
+
+      assert has_element?(view, "#flash-error", "Some of your changes may not have been saved")
+      # The email change was never stored, so the form shows the saved one.
+      assert has_element?(view, "#profile_email[value='carol@example.com']")
+    end
+
+    # `log_in_user/2` records the login on the user's stream, which this user
+    # does not have, so store the session row directly.
+    defp log_in_streamless(conn, user) do
+      {token, token_hash} = Fskick.Users.Session.build_token()
+
+      Fskick.Repo.insert!(%Fskick.Users.Session{
+        id: Ecto.UUID.generate(),
+        user_id: user.id,
+        token_hash: token_hash,
+        expires_at: Fskick.Users.Session.expires_at()
+      })
+
+      conn
+      |> Phoenix.ConnTest.init_test_session(%{})
+      |> Plug.Conn.put_session(:user_token, token)
     end
   end
 
@@ -136,7 +166,7 @@ defmodule FskickWeb.UserProfileEditLiveTest do
 
       assert field_error?(view, :current_password, "can't be blank")
       assert field_error?(view, :password_confirmation, "can't be blank")
-      assert Users.get_linked_player(user).name == "Alice"
+      assert Users.get_user(user.id).player.name == "Alice"
     end
 
     test "keeps typed values but never echoes passwords", %{conn: conn} do

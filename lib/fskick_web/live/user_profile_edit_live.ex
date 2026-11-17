@@ -4,10 +4,7 @@ defmodule FskickWeb.UserProfileEditLive do
   alias Fskick.Users
 
   def mount(_params, _session, socket) do
-    user = socket.assigns.current_scope.user
-    player = Users.get_linked_player(user)
-
-    {:ok, assign(socket, player: player, form: profile_form(user, player))}
+    {:ok, assign(socket, form: profile_form(socket.assigns.current_scope.user))}
   end
 
   # Validates on submit only: a phx-change validation would verify the current
@@ -24,13 +21,20 @@ defmodule FskickWeb.UserProfileEditLive do
         {:noreply, assign(socket, :form, to_form(changeset, as: :profile))}
 
       {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not save your changes. Please try again.")}
+        {:noreply,
+         socket
+         |> put_flash(
+           :error,
+           "Some of your changes may not have been saved. The form shows your saved " <>
+             "profile; please check it and save again."
+         )
+         |> assign(form: profile_form(Users.get_user(socket.assigns.current_scope.user.id)))}
     end
   end
 
-  defp profile_form(user, player) do
+  defp profile_form(user) do
     user
-    |> Users.change_profile(player)
+    |> Users.change_profile()
     |> to_form(as: :profile)
   end
 
@@ -42,10 +46,10 @@ defmodule FskickWeb.UserProfileEditLive do
 
         <.form for={@form} id="profile_form" phx-submit="save">
           <.input field={@form[:email]} type="email" label="Email" autocomplete="username" />
-          <.input :if={@player} field={@form[:player_name]} type="text" label="Player name" />
+          <.input field={@form[:player_name]} type="text" label="Player name" />
 
           <h2 class="text-lg font-semibold mt-6 mb-1">Change password</h2>
-          <p class="text-sm text-gray-400 mb-3">Leave these empty to keep your current password.</p>
+          <p class="text-sm mb-3">Leave these empty to keep your current password.</p>
 
           <%!-- value="" keeps a submitted password out of the re-rendered form. --%>
           <.input
@@ -53,7 +57,7 @@ defmodule FskickWeb.UserProfileEditLive do
             type="password"
             label="Current password"
             value=""
-            autocomplete="off"
+            autocomplete="password"
           />
           <.input
             field={@form[:password]}

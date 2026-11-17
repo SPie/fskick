@@ -1,7 +1,7 @@
 defmodule Fskick.Users.ProfileForm do
   @moduledoc """
   Backs the profile edit form, which spans two aggregates: email and password
-  belong to the user, the name to the linked player.
+  belong to the user, the name to its player, which must be preloaded.
 
   Decides which commands a submission calls for and collects their errors onto
   one changeset. The validation rules themselves stay on the commands.
@@ -31,13 +31,13 @@ defmodule Fskick.Users.ProfileForm do
 
   @doc """
   A changeset over the form, with email and player name defaulting to the
-  current values. `player` is `nil` for a user without a linked player.
+  current values.
   """
-  def changeset(%User{} = user, player, attrs \\ %{}) do
+  def changeset(%User{player: %Player{} = player} = user, attrs \\ %{}) do
     # Only "" means empty, so a whitespace-only password field counts as filled
     # and is rejected by the command instead of being skipped.
     cast(
-      %__MODULE__{email: user.email, player_name: player && player.name},
+      %__MODULE__{email: user.email, player_name: player.name},
       attrs,
       @fields,
       empty_values: [""]
@@ -54,8 +54,8 @@ defmodule Fskick.Users.ProfileForm do
   Returns `{:ok, commands}` or `{:error, changeset}` with the errors of every
   invalid command.
   """
-  def commands(%User{} = user, player, attrs) do
-    changeset = changeset(user, player, attrs)
+  def commands(%User{player: %Player{} = player} = user, attrs) do
+    changeset = changeset(user, attrs)
 
     results =
       Enum.reject(
@@ -69,11 +69,9 @@ defmodule Fskick.Users.ProfileForm do
 
     with {:ok, _form} <-
            results |> Enum.reduce(changeset, &merge_errors/2) |> apply_action(:update) do
-      {:ok, for({:ok, command} <- results, do: command)}
+      {:ok, Enum.map(results, fn {:ok, command} -> command end)}
     end
   end
-
-  defp rename_player(_changeset, nil), do: :unchanged
 
   defp rename_player(changeset, %Player{id: id, name: current_name}) do
     case get_field(changeset, :player_name) do

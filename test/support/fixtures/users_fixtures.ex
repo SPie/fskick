@@ -20,6 +20,23 @@ defmodule Fskick.UsersFixtures do
     user
   end
 
+  @doc """
+  Insert a user straight into the read model, linked to a freshly created
+  player but with no event stream of its own: every command for it fails to
+  dispatch with `{:error, :not_found}`. For testing partial failures.
+  """
+  def streamless_user_fixture(attrs \\ %{}) do
+    player = player_fixture(Map.get(attrs, :player_name))
+
+    Fskick.Repo.insert!(%Fskick.Users.User{
+      id: Ecto.UUID.generate(),
+      player_id: player.id,
+      email: Map.get(attrs, :email, unique_user_email()),
+      hashed_password: Fskick.Users.Password.hash(valid_user_password()),
+      created_at: DateTime.utc_now()
+    })
+  end
+
   @doc "Create a player and return it (for linking a user to an existing player)."
   def player_fixture(name \\ nil) do
     {:ok, player} = Players.create_player(name || unique_player_name())

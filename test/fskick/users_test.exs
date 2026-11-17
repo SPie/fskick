@@ -29,7 +29,7 @@ defmodule Fskick.UsersTest do
       assert {:ok, %User{}} =
                Users.update_profile(user, profile_params(%{"player_name" => "Bob"}))
 
-      assert Users.get_linked_player(user).name == "Bob"
+      assert Users.get_user(user.id).player.name == "Bob"
       assert [%PlayerRenamed{name: "Bob"}] = change_events(user)
     end
 
@@ -73,7 +73,7 @@ defmodule Fskick.UsersTest do
       assert %{current_password: ["can't be blank"]} = errors_on(changeset)
       assert [] = change_events(user)
       assert Users.get_user(user.id).email == "alice@example.com"
-      assert Users.get_linked_player(user).name == "Alice"
+      assert Users.get_user(user.id).player.name == "Alice"
     end
 
     test "rejects an email and a player name that are taken", %{user: user} do
@@ -92,6 +92,34 @@ defmodule Fskick.UsersTest do
       assert {:ok, _user} = Users.update_profile(user, attrs)
 
       assert %User{} = user_fixture(%{email: "alice@example.com", player_name: "Alice"})
+    end
+
+    test "dispatches every command before a failure stops the update" do
+      user = streamless_user_fixture(%{email: "carol@example.com", player_name: "Carol"})
+
+      attrs = profile_params(%{"email" => "new@example.com", "player_name" => "Caroline"})
+
+      assert {:error, :not_found} = Users.update_profile(user, attrs)
+
+      # The rename comes first and is stored; the email change has no user
+      # stream to land on.
+      assert [%PlayerRenamed{name: "Caroline"}] =
+               "player-#{user.player_id}"
+               |> stream_events()
+               |> Enum.filter(&match?(%PlayerRenamed{}, &1))
+
+      assert Users.get_user(user.id).email == "carol@example.com"
+    end
+
+    test "diffs against the stored user, not the one passed in", %{user: user} do
+      assert {:ok, _user} =
+               Users.update_profile(user, profile_params(%{"email" => "new@example.com"}))
+
+      # `user` still says alice@example.com, but that change already landed.
+      assert {:ok, _user} =
+               Users.update_profile(user, profile_params(%{"email" => "new@example.com"}))
+
+      assert [%UserEmailChanged{}] = change_events(user)
     end
 
     test "keeps the session when the password changes", %{user: user} do
@@ -126,11 +154,17 @@ defmodule Fskick.UsersTest do
     # The profile events on the player's and the user's streams, in that order.
     defp change_events(%User{id: id, player_id: player_id}) do
       ["player-#{player_id}", "user-#{id}"]
-      |> Enum.flat_map(&Commanded.EventStore.stream_forward(Fskick.App, &1))
-      |> Enum.map(& &1.data)
+      |> Enum.flat_map(&stream_events/1)
       |> Enum.filter(
         &match?(%mod{} when mod in [PlayerRenamed, UserEmailChanged, UserPasswordChanged], &1)
       )
+    end
+
+    defp stream_events(stream_uuid) do
+      case Commanded.EventStore.stream_forward(Fskick.App, stream_uuid) do
+        {:error, :stream_not_found} -> []
+        events -> Enum.map(events, & &1.data)
+      end
     end
   end
 
@@ -194,7 +228,7 @@ defmodule Fskick.UsersTest do
       assert {:ok, %User{} = user} =
                Users.register_user_with_new_player("Alice", "alice@example.com", "hello world!")
 
-      player = Users.get_linked_player(user)
+      player = user.player
       assert player.name == "Alice"
       assert player.id == user.player_id
     end
@@ -325,7 +359,7 @@ defmodule Fskick.UsersTest do
 
     test "leaves the linked player untouched" do
       user = user_fixture()
-      player = Users.get_linked_player(user)
+      player = user.player
 
       assert :ok = Users.delete_user_data(user.id)
 
