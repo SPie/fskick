@@ -126,12 +126,12 @@ defmodule Fskick.Users do
   - `{:error, reason}` for dispatch failures
   """
   def update_profile(%User{id: user_id}, attrs) do
-    user = User |> Repo.get!(user_id) |> Repo.preload(:player)
+    user = get_user(user_id)
 
     with {:ok, commands} <- ProfileForm.commands(user, attrs),
          :ok <- each_until_error(commands, &App.dispatch/1),
          :ok <- each_until_error(commands, &await_profile_projection/1) do
-      {:ok, User |> Repo.get!(user_id) |> Repo.preload(:player)}
+      {:ok, get_user(user_id)}
     end
   end
 
