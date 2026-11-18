@@ -8,6 +8,8 @@ defmodule Fskick.Users.Projectors.User do
 
   alias Fskick.EventStore.JsonSerializer
   alias Fskick.Users.Events.UserDataDeleted
+  alias Fskick.Users.Events.UserEmailChanged
+  alias Fskick.Users.Events.UserPasswordChanged
   alias Fskick.Users.Events.UserRegistered
 
   project(%UserRegistered{} = event, metadata, fn multi ->
@@ -20,6 +22,28 @@ defmodule Fskick.Users.Projectors.User do
     })
   end)
 
+  project(%UserEmailChanged{user_id: id} = event, _metadata, fn multi ->
+    Ecto.Multi.update_all(
+      multi,
+      :user,
+      from(u in Fskick.Users.User, where: u.id == ^id),
+      set: [email: projected_email(event), updated_at: NaiveDateTime.utc_now(:second)]
+    )
+  end)
+
+  project(
+    %UserPasswordChanged{user_id: id, hashed_password: hashed_password},
+    _metadata,
+    fn multi ->
+      Ecto.Multi.update_all(
+        multi,
+        :user,
+        from(u in Fskick.Users.User, where: u.id == ^id),
+        set: [hashed_password: hashed_password, updated_at: NaiveDateTime.utc_now(:second)]
+      )
+    end
+  )
+
   project(%UserDataDeleted{user_id: id}, _metadata, fn multi ->
     Ecto.Multi.delete_all(multi, :user, from(u in Fskick.Users.User, where: u.id == ^id))
   end)
@@ -29,7 +53,7 @@ defmodule Fskick.Users.Projectors.User do
   # `users.email` unique index the moment two erased users replay before their
   # respective `UserDataDeleted` events land, so give each one a unique value.
   # The row is short-lived either way — the deletion follows on replay.
-  defp projected_email(%UserRegistered{user_id: id, email: email}) do
+  defp projected_email(%{user_id: id, email: email}) do
     if email == JsonSerializer.tombstone() do
       "redacted-#{id}"
     else

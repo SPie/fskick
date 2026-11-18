@@ -6,18 +6,21 @@ defmodule Fskick.Router do
   alias Fskick.Games.Commands.CreateGame
   alias Fskick.Players.Aggregates.Player
   alias Fskick.Players.Commands.CreatePlayer
+  alias Fskick.Players.Commands.RenamePlayer
   alias Fskick.Seasons.Aggregates.Season
   alias Fskick.Seasons.Commands.ActivateSeason
   alias Fskick.Seasons.Commands.CreateSeason
   alias Fskick.Seasons.Commands.DeactivateSeason
   alias Fskick.Users.Aggregates.User
+  alias Fskick.Users.Commands.ChangeUserEmail
+  alias Fskick.Users.Commands.ChangeUserPassword
   alias Fskick.Users.Commands.DeleteUserData
   alias Fskick.Users.Commands.LogInUser
   alias Fskick.Users.Commands.LogOutUser
   alias Fskick.Users.Commands.RegisterUser
 
   identify(Player, by: :player_id, prefix: "player-")
-  dispatch([CreatePlayer], to: Player)
+  dispatch([CreatePlayer, RenamePlayer], to: Player)
 
   identify(Season, by: :season_id, prefix: "season-")
   dispatch([CreateSeason, ActivateSeason, DeactivateSeason], to: Season)
@@ -26,5 +29,9 @@ defmodule Fskick.Router do
   dispatch([CreateGame, AddPlayerToGame], to: Game)
 
   identify(User, by: :user_id, prefix: "user-")
-  dispatch([RegisterUser, DeleteUserData, LogInUser, LogOutUser], to: User)
+
+  dispatch(
+    [RegisterUser, DeleteUserData, LogInUser, LogOutUser, ChangeUserEmail, ChangeUserPassword],
+    to: User
+  )
 end

@@ -60,12 +60,10 @@ defmodule FskickWeb.Layouts do
             </div>
             <div class="ml-auto flex items-center space-x-3 md:px-5 px-3 text-sm md:text-lg whitespace-nowrap">
               <%= if @current_scope && @current_scope.user do %>
-                <.link navigate={~p"/users/profile"} class="py-2 rounded-md">Profile</.link>
-                <.link href={~p"/users/log-out"} method="delete" class="py-2 rounded-md">
-                  Log out
-                </.link>
+                <.button variant="link" navigate={~p"/users/profile"}>Profile</.button>
+                <.button variant="link" href={~p"/users/log-out"} method="delete">Log out</.button>
               <% else %>
-                <.link navigate={~p"/users/log-in"} class="py-2 rounded-md">Log in</.link>
+                <.button variant="link" navigate={~p"/users/log-in"}>Log in</.button>
               <% end %>
             </div>
           </div>

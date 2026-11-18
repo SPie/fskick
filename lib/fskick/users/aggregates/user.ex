@@ -8,13 +8,17 @@ defmodule Fskick.Users.Aggregates.User do
   """
 
   alias Fskick.Users.Aggregates.User
+  alias Fskick.Users.Commands.ChangeUserEmail
+  alias Fskick.Users.Commands.ChangeUserPassword
   alias Fskick.Users.Commands.DeleteUserData
   alias Fskick.Users.Commands.LogInUser
   alias Fskick.Users.Commands.LogOutUser
   alias Fskick.Users.Commands.RegisterUser
   alias Fskick.Users.Events.UserDataDeleted
+  alias Fskick.Users.Events.UserEmailChanged
   alias Fskick.Users.Events.UserLoggedIn
   alias Fskick.Users.Events.UserLoggedOut
+  alias Fskick.Users.Events.UserPasswordChanged
   alias Fskick.Users.Events.UserRegistered
 
   defstruct [:user_id, :player_id]
@@ -60,6 +64,22 @@ defmodule Fskick.Users.Aggregates.User do
     %UserLoggedOut{user_id: command.user_id, session_id: command.session_id}
   end
 
+  def execute(%User{user_id: nil}, %ChangeUserEmail{}) do
+    {:error, :not_found}
+  end
+
+  def execute(%User{}, %ChangeUserEmail{} = command) do
+    %UserEmailChanged{user_id: command.user_id, email: command.email}
+  end
+
+  def execute(%User{user_id: nil}, %ChangeUserPassword{}) do
+    {:error, :not_found}
+  end
+
+  def execute(%User{}, %ChangeUserPassword{} = command) do
+    %UserPasswordChanged{user_id: command.user_id, hashed_password: command.hashed_password}
+  end
+
   def apply(%User{} = state, %UserRegistered{user_id: id, player_id: player_id}) do
     %User{state | user_id: id, player_id: player_id}
   end
@@ -75,4 +95,10 @@ defmodule Fskick.Users.Aggregates.User do
   def apply(%User{} = state, %UserLoggedIn{}), do: state
 
   def apply(%User{} = state, %UserLoggedOut{}), do: state
+
+  # The aggregate holds neither the email nor the password hash, so these only
+  # append to the stream.
+  def apply(%User{} = state, %UserEmailChanged{}), do: state
+
+  def apply(%User{} = state, %UserPasswordChanged{}), do: state
 end

@@ -87,19 +87,22 @@ defmodule FskickWeb.CoreComponents do
       <.button>Send!</.button>
       <.button phx-click="go" variant="primary">Send!</.button>
       <.button navigate={~p"/"}>Home</.button>
+      <.button variant="link" navigate={~p"/"}>Home</.button>
   """
   attr :rest, :global, include: ~w(href navigate patch method download name value disabled)
   attr :class, :any
-  attr :variant, :string, values: ~w(primary)
+  attr :variant, :string, values: ~w(primary link)
   slot :inner_block, required: true
 
   def button(%{rest: rest} = assigns) do
-    variants = %{"primary" => "btn-primary", nil => "btn-primary btn-soft"}
+    variants = %{
+      "primary" => ["btn", "btn-primary"],
+      nil => ["btn", "btn-primary btn-soft"],
+      # Coloured like a plain link, with only a small shadow to read as a button.
+      "link" => "inline-block rounded-md px-3 py-1 shadow-[0_0_4px_rgb(0_0_0/0.6)]"
+    }
 
-    assigns =
-      assign_new(assigns, :class, fn ->
-        ["btn", Map.fetch!(variants, assigns[:variant])]
-      end)
+    assigns = assign_new(assigns, :class, fn -> Map.fetch!(variants, assigns[:variant]) end)
 
     if rest[:href] || rest[:navigate] || rest[:patch] do
       ~H"""

@@ -4,7 +4,8 @@ defmodule Fskick.Users do
 
   Write side dispatches commands through `Fskick.App` (event-sourced); the
   `email` PII is crypto-shredded via a per-user key (`Fskick.Users.Crypto`).
-  Read side queries the `Fskick.Users.User` projection.
+  Read side queries the `Fskick.Users.User` projection; every user it returns
+  comes with its player preloaded.
 
   Authentication is split across both sides on purpose: the *fact* of a login or
   logout is event-sourced onto the user stream (`UserLoggedIn`, `UserLoggedOut`)
@@ -20,13 +21,18 @@ defmodule Fskick.Users do
   alias Fskick.App
   alias Fskick.CQRS.Projection
   alias Fskick.Players
+  alias Fskick.Players.Commands.RenamePlayer
   alias Fskick.Repo
+  alias Fskick.Users.Commands.ChangeUserEmail
+  alias Fskick.Users.Commands.ChangeUserPassword
   alias Fskick.Users.Commands.DeleteUserData
   alias Fskick.Users.Commands.LogInUser
   alias Fskick.Users.Commands.LogOutUser
   alias Fskick.Users.Commands.RegisterUser
   alias Fskick.Users.Crypto
+  alias Fskick.Users.Email
   alias Fskick.Users.Password
+  alias Fskick.Users.ProfileForm
   alias Fskick.Users.Session
   alias Fskick.Users.User
 
@@ -54,8 +60,9 @@ defmodule Fskick.Users do
 
     with {:ok, %RegisterUser{} = command} <- RegisterUser.new(attrs),
          :ok <- Crypto.generate_key(user_id),
-         :ok <- App.dispatch(command) do
-      Projection.await(User, user_id)
+         :ok <- App.dispatch(command),
+         {:ok, user} <- Projection.await(User, user_id) do
+      {:ok, Repo.preload(user, :player)}
     end
   end
 
@@ -77,13 +84,10 @@ defmodule Fskick.Users do
   @doc "Fetch a user by id, or `nil` if the id is invalid or unknown."
   def get_user(id) when is_binary(id) do
     case Ecto.UUID.cast(id) do
-      {:ok, uuid} -> Repo.get(User, uuid)
+      {:ok, uuid} -> User |> Repo.get(uuid) |> Repo.preload(:player)
       :error -> nil
     end
   end
-
-  @doc "The player linked to a user."
-  def get_linked_player(%User{player_id: player_id}), do: Players.get_player(player_id)
 
   @doc """
   Authenticate by email and password. Returns the `%User{}` on success or
@@ -92,9 +96,63 @@ defmodule Fskick.Users do
   """
   def get_user_by_email_and_password(email, password)
       when is_binary(email) and is_binary(password) do
-    user = Repo.get_by(User, email: normalize_email(email))
+    user = Repo.get_by(User, email: Email.normalize(email))
 
-    if Password.valid?(password, user && user.hashed_password), do: user
+    if Password.valid?(password, user && user.hashed_password), do: Repo.preload(user, :player)
+  end
+
+  ## Profile
+
+  @doc "A changeset for the profile form, for use with `to_form/2`."
+  def change_profile(%User{} = user, attrs \\ %{}) do
+    ProfileForm.changeset(user, attrs)
+  end
+
+  @doc """
+  Update a user's email, password and linked player's name.
+
+  Everything is validated before anything is dispatched, and only what changed
+  is dispatched. All commands are dispatched before any projection is awaited,
+  so a lagging read model never holds back the remaining changes.
+
+  The changes span two aggregates, so they are not atomic: a dispatch failure
+  part-way keeps the changes already dispatched, and a projection timeout means
+  the change is stored but not visible yet. Repeating the update is safe,
+  because changes already applied no longer count as changes.
+
+  Returns `{:ok, %User{}}` on success, or:
+  - `{:error, %Ecto.Changeset{}}` when the input is invalid
+  - `{:error, :projection_timeout}` if the read model does not catch up in time
+  - `{:error, reason}` for dispatch failures
+  """
+  def update_profile(%User{id: user_id}, attrs) do
+    user = get_user(user_id)
+
+    with {:ok, commands} <- ProfileForm.commands(user, attrs),
+         :ok <- each_until_error(commands, &App.dispatch/1),
+         :ok <- each_until_error(commands, &await_profile_projection/1) do
+      {:ok, get_user(user_id)}
+    end
+  end
+
+  defp each_until_error(commands, fun) do
+    Enum.reduce_while(commands, :ok, fn command, :ok ->
+      case fun.(command) do
+        :ok -> {:cont, :ok}
+        {:ok, _struct} -> {:cont, :ok}
+        {:error, _reason} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp await_profile_projection(%RenamePlayer{} = command), do: Players.await_renamed(command)
+
+  defp await_profile_projection(%ChangeUserEmail{user_id: user_id, email: email}) do
+    Projection.await(User, user_id, match: &(&1.email == email))
+  end
+
+  defp await_profile_projection(%ChangeUserPassword{user_id: user_id} = command) do
+    Projection.await(User, user_id, match: &(&1.hashed_password == command.hashed_password))
   end
 
   ## Sessions
@@ -151,7 +209,7 @@ defmodule Fskick.Users do
         where: s.token_hash == ^hash and s.expires_at > ^now,
         select: u
 
-    Repo.one(query)
+    query |> Repo.one() |> Repo.preload(:player)
   end
 
   @doc """
@@ -206,6 +264,4 @@ defmodule Fskick.Users do
       :ok
     end
   end
-
-  defp normalize_email(email), do: email |> String.trim() |> String.downcase()
 end

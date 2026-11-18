@@ -3,7 +3,8 @@ defmodule Fskick.Players.Player do
   Read-model schema for players.
 
   Written by `Fskick.Players.Projectors.Player` in response to
-  `Fskick.Players.Events.PlayerCreated`. Used for queries and
+  `Fskick.Players.Events.PlayerCreated` and
+  `Fskick.Players.Events.PlayerRenamed`. Used for queries and
   cross-aggregate uniqueness checks; not used for user input casting.
   """
 

@@ -13,6 +13,7 @@ defmodule Fskick.Players do
   alias Fskick.Games.PlayerResult
   alias Fskick.Games.PlayerStats
   alias Fskick.Players.Commands.CreatePlayer
+  alias Fskick.Players.Commands.RenamePlayer
   alias Fskick.Players.Player
   alias Fskick.Players.PlayerStat
   alias Fskick.Repo
@@ -34,6 +35,16 @@ defmodule Fskick.Players do
          :ok <- App.dispatch(command) do
       Projection.await(Player, command.player_id)
     end
+  end
+
+  @doc """
+  Wait until the read model shows the name from a dispatched `%RenamePlayer{}`.
+
+  Returns `{:ok, %Player{}}`, or `{:error, :projection_timeout}` if the read
+  model does not catch up in time.
+  """
+  def await_renamed(%RenamePlayer{player_id: player_id, name: name}) do
+    Projection.await(Player, player_id, match: &(&1.name == name))
   end
 
   def get_player_by_name(name) when is_binary(name) do

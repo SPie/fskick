@@ -40,6 +40,7 @@ defmodule FskickWeb.Router do
     live_session :require_authenticated,
       on_mount: [{FskickWeb.UserAuth, :require_authenticated_user}] do
       live "/users/profile", UserProfileLive, :show
+      live "/users/profile/edit", UserProfileEditLive, :edit
     end
   end
 

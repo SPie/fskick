@@ -3,11 +3,50 @@ defmodule Fskick.Users.Projectors.UserTest do
 
   alias Fskick.EventStore.JsonSerializer
   alias Fskick.Users.Events.UserDataDeleted
+  alias Fskick.Users.Events.UserEmailChanged
+  alias Fskick.Users.Events.UserPasswordChanged
   alias Fskick.Users.Events.UserRegistered
   alias Fskick.Users.Projectors.User, as: Projector
   alias Fskick.Users.User
 
+  describe "profile changes" do
+    test "UserEmailChanged updates the email" do
+      id = Ecto.UUID.generate()
+
+      assert :ok = project(%{registered(id) | email: "alice@example.com"}, 1)
+      assert :ok = project(%UserEmailChanged{user_id: id, email: "new@example.com"}, 2)
+
+      assert %User{email: "new@example.com"} = Repo.get(User, id)
+    end
+
+    test "UserPasswordChanged updates the password hash" do
+      id = Ecto.UUID.generate()
+
+      assert :ok = project(registered(id), 1)
+      assert :ok = project(%UserPasswordChanged{user_id: id, hashed_password: "new hash"}, 2)
+
+      assert %User{hashed_password: "new hash"} = Repo.get(User, id)
+    end
+  end
+
   describe "replaying erased users" do
+    test "two users whose changed email decrypted to the tombstone do not collide" do
+      alice = Ecto.UUID.generate()
+      bob = Ecto.UUID.generate()
+
+      assert :ok = project(registered(alice), 1)
+      assert :ok = project(registered(bob), 2)
+
+      assert :ok =
+               project(%UserEmailChanged{user_id: alice, email: JsonSerializer.tombstone()}, 3)
+
+      assert :ok = project(%UserEmailChanged{user_id: bob, email: JsonSerializer.tombstone()}, 4)
+
+      assert %User{email: alice_email} = Repo.get(User, alice)
+      assert %User{email: bob_email} = Repo.get(User, bob)
+      assert alice_email != bob_email
+    end
+
     test "two users whose email decrypted to the tombstone do not collide" do
       # Once a user's crypto key is deleted, the serializer hands the projector
       # the same "[redacted]" string for every one of them — while the unique

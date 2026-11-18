@@ -4,8 +4,6 @@ defmodule FskickWeb.UserProfileLiveTest do
   import Phoenix.LiveViewTest
   import Fskick.UsersFixtures
 
-  alias Fskick.Users
-
   describe "profile page" do
     test "redirects anonymous visitors to log in", %{conn: conn} do
       assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(conn, ~p"/users/profile")
@@ -13,12 +11,23 @@ defmodule FskickWeb.UserProfileLiveTest do
 
     test "shows the user's email and linked player", %{conn: conn} do
       user = user_fixture(%{email: "alice@example.com", player_name: "Alice"})
-      player = Users.get_linked_player(user)
+      player = user.player
 
       {:ok, view, html} = conn |> log_in_user(user) |> live(~p"/users/profile")
 
       assert html =~ "alice@example.com"
       assert has_element?(view, ~s|a[href="/players/#{player.id}"]|, "Alice")
+    end
+
+    test "has a button at the bottom leading to the edit page", %{conn: conn} do
+      user = user_fixture()
+      {:ok, view, _html} = conn |> log_in_user(user) |> live(~p"/users/profile")
+
+      assert has_element?(view, "dl ~ div a[href='/users/profile/edit']", "Edit profile")
+
+      view |> element("a", "Edit profile") |> render_click()
+
+      assert_redirect(view, ~p"/users/profile/edit")
     end
 
     test "the nav shows Profile and Log out for authenticated users", %{conn: conn} do
