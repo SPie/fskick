@@ -34,10 +34,14 @@ defmodule FskickWeb.UserLoginLive do
             required
           />
 
-          <.button variant="primary" phx-disable-with="Logging in..." class="w-full mt-4">
-            Log in
-          </.button>
+          <div class="mt-4">
+            <.button variant="link" phx-disable-with="Logging in...">Log in</.button>
+          </div>
         </.form>
+
+        <p class="text-center text-sm mt-4">
+          <.link navigate={~p"/users/reset-password"} class="link">Forgot your password?</.link>
+        </p>
       </div>
     </Layouts.app>
     """

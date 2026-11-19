@@ -10,6 +10,7 @@ defmodule Fskick.Users.Projectors.User do
   alias Fskick.Users.Events.UserDataDeleted
   alias Fskick.Users.Events.UserEmailChanged
   alias Fskick.Users.Events.UserPasswordChanged
+  alias Fskick.Users.Events.UserPasswordReset
   alias Fskick.Users.Events.UserRegistered
 
   project(%UserRegistered{} = event, metadata, fn multi ->
@@ -33,6 +34,19 @@ defmodule Fskick.Users.Projectors.User do
 
   project(
     %UserPasswordChanged{user_id: id, hashed_password: hashed_password},
+    _metadata,
+    fn multi ->
+      Ecto.Multi.update_all(
+        multi,
+        :user,
+        from(u in Fskick.Users.User, where: u.id == ^id),
+        set: [hashed_password: hashed_password, updated_at: NaiveDateTime.utc_now(:second)]
+      )
+    end
+  )
+
+  project(
+    %UserPasswordReset{user_id: id, hashed_password: hashed_password},
     _metadata,
     fn multi ->
       Ecto.Multi.update_all(

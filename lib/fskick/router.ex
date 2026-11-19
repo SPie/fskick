@@ -18,6 +18,7 @@ defmodule Fskick.Router do
   alias Fskick.Users.Commands.LogInUser
   alias Fskick.Users.Commands.LogOutUser
   alias Fskick.Users.Commands.RegisterUser
+  alias Fskick.Users.Commands.ResetUserPassword
 
   identify(Player, by: :player_id, prefix: "player-")
   dispatch([CreatePlayer, RenamePlayer], to: Player)
@@ -31,7 +32,15 @@ defmodule Fskick.Router do
   identify(User, by: :user_id, prefix: "user-")
 
   dispatch(
-    [RegisterUser, DeleteUserData, LogInUser, LogOutUser, ChangeUserEmail, ChangeUserPassword],
+    [
+      RegisterUser,
+      DeleteUserData,
+      LogInUser,
+      LogOutUser,
+      ChangeUserEmail,
+      ChangeUserPassword,
+      ResetUserPassword
+    ],
     to: User
   )
 end

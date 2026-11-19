@@ -14,11 +14,13 @@ defmodule Fskick.Users.Aggregates.User do
   alias Fskick.Users.Commands.LogInUser
   alias Fskick.Users.Commands.LogOutUser
   alias Fskick.Users.Commands.RegisterUser
+  alias Fskick.Users.Commands.ResetUserPassword
   alias Fskick.Users.Events.UserDataDeleted
   alias Fskick.Users.Events.UserEmailChanged
   alias Fskick.Users.Events.UserLoggedIn
   alias Fskick.Users.Events.UserLoggedOut
   alias Fskick.Users.Events.UserPasswordChanged
+  alias Fskick.Users.Events.UserPasswordReset
   alias Fskick.Users.Events.UserRegistered
 
   defstruct [:user_id, :player_id]
@@ -80,6 +82,14 @@ defmodule Fskick.Users.Aggregates.User do
     %UserPasswordChanged{user_id: command.user_id, hashed_password: command.hashed_password}
   end
 
+  def execute(%User{user_id: nil}, %ResetUserPassword{}) do
+    {:error, :not_found}
+  end
+
+  def execute(%User{}, %ResetUserPassword{} = command) do
+    %UserPasswordReset{user_id: command.user_id, hashed_password: command.hashed_password}
+  end
+
   def apply(%User{} = state, %UserRegistered{user_id: id, player_id: player_id}) do
     %User{state | user_id: id, player_id: player_id}
   end
@@ -101,4 +111,6 @@ defmodule Fskick.Users.Aggregates.User do
   def apply(%User{} = state, %UserEmailChanged{}), do: state
 
   def apply(%User{} = state, %UserPasswordChanged{}), do: state
+
+  def apply(%User{} = state, %UserPasswordReset{}), do: state
 end

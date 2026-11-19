@@ -37,20 +37,11 @@ defmodule Fskick.Users.Commands.ChangeUserPassword do
     %__MODULE__{}
     |> cast(attrs, [:user_id, :current_password, :password, :password_confirmation])
     |> validate_required([:user_id, :current_password, :password, :password_confirmation])
-    |> validate_password_confirmed()
+    |> Password.validate_confirmation()
     |> validate_current_password()
-    |> hash_password()
+    |> Password.put_hash()
+    |> delete_current_password()
     |> apply_action(:insert)
-  end
-
-  # A blank field already has its error; "does not match" on top adds nothing.
-  defp validate_password_confirmed(changeset) do
-    if Keyword.has_key?(changeset.errors, :password) or
-         Keyword.has_key?(changeset.errors, :password_confirmation) do
-      changeset
-    else
-      validate_confirmation(changeset, :password, message: "does not match password")
-    end
   end
 
   defp validate_current_password(changeset) do
@@ -68,13 +59,8 @@ defmodule Fskick.Users.Commands.ChangeUserPassword do
     end
   end
 
-  defp hash_password(%Ecto.Changeset{valid?: false} = changeset), do: changeset
-
-  defp hash_password(changeset) do
-    changeset
-    |> put_change(:hashed_password, Password.hash(get_change(changeset, :password)))
-    |> delete_change(:current_password)
-    |> delete_change(:password)
-    |> delete_change(:password_confirmation)
-  end
+  # Like the new password, the current one must not reach the write side; an
+  # invalid changeset keeps it, as `Password.put_hash/1` keeps the others.
+  defp delete_current_password(%Ecto.Changeset{valid?: false} = changeset), do: changeset
+  defp delete_current_password(changeset), do: delete_change(changeset, :current_password)
 end
