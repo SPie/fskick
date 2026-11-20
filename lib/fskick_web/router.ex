@@ -35,6 +35,8 @@ defmodule FskickWeb.Router do
     live_session :redirect_if_authenticated,
       on_mount: [{FskickWeb.UserAuth, :redirect_if_authenticated}] do
       live "/users/log-in", UserLoginLive, :new
+      live "/users/reset-password", UserForgotPasswordLive, :new
+      live "/users/reset-password/:token", UserResetPasswordLive, :edit
     end
 
     live_session :require_authenticated,

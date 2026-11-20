@@ -8,11 +8,13 @@ defmodule Fskick.Users.Aggregates.UserTest do
   alias Fskick.Users.Commands.LogInUser
   alias Fskick.Users.Commands.LogOutUser
   alias Fskick.Users.Commands.RegisterUser
+  alias Fskick.Users.Commands.ResetUserPassword
   alias Fskick.Users.Events.UserDataDeleted
   alias Fskick.Users.Events.UserEmailChanged
   alias Fskick.Users.Events.UserLoggedIn
   alias Fskick.Users.Events.UserLoggedOut
   alias Fskick.Users.Events.UserPasswordChanged
+  alias Fskick.Users.Events.UserPasswordReset
   alias Fskick.Users.Events.UserRegistered
 
   defp registered(user_id \\ Ecto.UUID.generate()) do
@@ -77,12 +79,29 @@ defmodule Fskick.Users.Aggregates.UserTest do
     end
   end
 
+  describe "execute/2 with ResetUserPassword" do
+    test "emits UserPasswordReset for a registered user" do
+      id = Ecto.UUID.generate()
+
+      assert %UserPasswordReset{user_id: ^id, hashed_password: "new hash"} =
+               User.execute(registered(id), %ResetUserPassword{
+                 user_id: id,
+                 hashed_password: "new hash"
+               })
+    end
+
+    test "rejects an unknown user" do
+      assert {:error, :not_found} = User.execute(%User{}, %ResetUserPassword{})
+    end
+  end
+
   describe "apply/2 with profile changes" do
     test "keeps the email and password hash out of the aggregate state" do
       state = registered()
 
       assert ^state = User.apply(state, %UserEmailChanged{email: "new@example.com"})
       assert ^state = User.apply(state, %UserPasswordChanged{hashed_password: "new hash"})
+      assert ^state = User.apply(state, %UserPasswordReset{hashed_password: "new hash"})
     end
   end
 

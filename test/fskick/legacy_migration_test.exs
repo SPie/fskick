@@ -66,6 +66,11 @@ defmodule Fskick.LegacyMigrationTest do
 
   describe "migrate_all/1 (smoke test against a tmp SQLite fixture)" do
     setup do
+      # The migration reports progress via Mix.shell(); send it to this process
+      # instead of stdout so the test run stays quiet.
+      Mix.shell(Mix.Shell.Process)
+      on_exit(fn -> Mix.shell(Mix.Shell.IO) end)
+
       unique = System.unique_integer([:positive])
       path = Path.join(System.tmp_dir!(), "fskick_legacy_#{unique}.db")
       on_exit(fn -> File.rm(path) end)
@@ -109,6 +114,7 @@ defmodule Fskick.LegacyMigrationTest do
       assert %Player{} = Players.get_player(ctx.carol_uuid)
 
       assert %Season{active: true} = Repo.get(Season, ctx.season_uuid)
+      assert_received {:mix_shell, :info, ["Seasons: imported 1, skipped 0"]}
 
       # Game 1 emits 3 player_result rows, Game 2 emits 2 → +5 total.
       await_results(ctx.baseline + 5)

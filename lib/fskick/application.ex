@@ -15,6 +15,8 @@ defmodule Fskick.Application do
       Fskick.KeyRepo,
       {DNSCluster, query: Application.get_env(:fskick, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Fskick.PubSub},
+      # Fire-and-forget work off the request path, e.g. sending emails.
+      {Task.Supervisor, name: Fskick.TaskSupervisor},
       Fskick.App,
       Fskick.Players.Projectors.Player,
       Fskick.Seasons.Projectors.Season,

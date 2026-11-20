@@ -44,7 +44,9 @@ config :fskick, FskickWeb.Endpoint,
 #
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
-config :fskick, Fskick.Mailer, adapter: Swoosh.Adapters.Local
+config :fskick, Fskick.Mailer,
+  adapter: Swoosh.Adapters.Local,
+  from: {"fskick", "noreply@fskick.local"}
 
 # Configure esbuild (the version is required)
 config :esbuild,

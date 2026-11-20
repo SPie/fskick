@@ -26,6 +26,9 @@ services:
       EVENT_STORE_URL: ecto://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${EVENT_STORE_DB}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       PHX_HOST: ${PHX_HOST}
+      # runtime.exs requires these in every prod release command, migrations included.
+      MAIL_API_KEY: ${MAIL_API_KEY}
+      MAIL_FROM: ${MAIL_FROM}
     depends_on:
       postgres:
         condition: service_healthy
@@ -38,6 +41,8 @@ services:
       EVENT_STORE_URL: ecto://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${EVENT_STORE_DB}
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       PHX_HOST: ${PHX_HOST}
+      MAIL_API_KEY: ${MAIL_API_KEY}
+      MAIL_FROM: ${MAIL_FROM}
       APP_VERSION: ${APP_VERSION:-dev}
       PORT: 4000
     ports:

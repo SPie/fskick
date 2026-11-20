@@ -126,21 +126,18 @@ if config_env() == :prod do
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
 
-  # ## Configuring the mailer
+  # ## Mailer
   #
-  # In production you need to configure the mailer to use a different adapter.
-  # Here is an example configuration for Mailgun:
-  #
-  #     config :fskick, Fskick.Mailer,
-  #       adapter: Swoosh.Adapters.Mailgun,
-  #       api_key: System.get_env("MAILGUN_API_KEY"),
-  #       domain: System.get_env("MAILGUN_DOMAIN")
-  #
-  # Most non-SMTP adapters require an API client. Swoosh supports Req, Hackney,
-  # and Finch out-of-the-box. This configuration is typically done at
-  # compile-time in your config/prod.exs:
-  #
-  #     config :swoosh, :api_client, Swoosh.ApiClient.Req
-  #
-  # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
+  # Emails go through Mailtrap's HTTPS API;
+  # the Req API client is set at compile time in config/prod.exs.
+  # MAIL_FROM must be on a domain verified with the mail provider.
+  config :fskick, Fskick.Mailer,
+    adapter: Swoosh.Adapters.Mailtrap,
+    api_key:
+      System.get_env("MAIL_API_KEY") ||
+        raise("environment variable MAIL_API_KEY is missing: the mail provider's API key"),
+    from:
+      {"fskick",
+       System.get_env("MAIL_FROM") ||
+         raise("environment variable MAIL_FROM is missing. For example: noreply@example.com")}
 end

@@ -29,12 +29,16 @@ defmodule Fskick.Users do
   alias Fskick.Users.Commands.LogInUser
   alias Fskick.Users.Commands.LogOutUser
   alias Fskick.Users.Commands.RegisterUser
+  alias Fskick.Users.Commands.ResetUserPassword
   alias Fskick.Users.Crypto
   alias Fskick.Users.Email
   alias Fskick.Users.Password
+  alias Fskick.Users.PasswordResetRequest
+  alias Fskick.Users.PasswordResetToken
   alias Fskick.Users.ProfileForm
   alias Fskick.Users.Session
   alias Fskick.Users.User
+  alias Fskick.Users.UserNotifier
 
   ## Registration
 
@@ -243,6 +247,144 @@ defmodule Fskick.Users do
         )
 
         :ok
+    end
+  end
+
+  ## Password reset
+
+  @doc "A changeset for the forgot-password form, for use with `to_form/2`."
+  def change_password_reset_request(attrs \\ %{}) do
+    PasswordResetRequest.changeset(attrs)
+  end
+
+  @doc """
+  Request a password reset link for the email in `attrs`.
+
+  When a user has that email, a fresh token replaces their earlier ones and the
+  link — built by `url_fun` from the encoded token — is emailed in the
+  background. Unknown addresses, and repeat requests within the throttle
+  window, quietly send nothing. Neither the result nor the response time says
+  whether an account exists.
+
+  Returns `:ok` for any well-formed email, or `{:error, %Ecto.Changeset{}}` when
+  the email is blank or malformed.
+  """
+  def request_password_reset(attrs, url_fun) when is_function(url_fun, 1) do
+    with {:ok, %PasswordResetRequest{email: email}} <- PasswordResetRequest.new(attrs) do
+      case Repo.get_by(User, email: email) do
+        nil -> :ok
+        %User{} = user -> send_password_reset(user, url_fun)
+      end
+    end
+  end
+
+  defp send_password_reset(%User{id: user_id} = user, url_fun) do
+    now = DateTime.utc_now()
+
+    if not password_reset_throttled?(user_id, now) do
+      {token, token_hash} = PasswordResetToken.build_token()
+
+      # Only the newest link works: the user's earlier tokens go, and lapsed
+      # tokens of anyone are pruned along the way (no sweeper process).
+      Repo.delete_all(
+        from t in PasswordResetToken, where: t.user_id == ^user_id or t.expires_at <= ^now
+      )
+
+      Repo.insert!(%PasswordResetToken{
+        user_id: user_id,
+        token_hash: token_hash,
+        expires_at: PasswordResetToken.expires_at(now)
+      })
+
+      {:ok, _pid} =
+        Task.Supervisor.start_child(Fskick.TaskSupervisor, fn ->
+          UserNotifier.deliver_reset_password_instructions(user, url_fun.(token))
+        end)
+    end
+
+    :ok
+  end
+
+  defp password_reset_throttled?(user_id, now) do
+    since = DateTime.add(now, -PasswordResetToken.throttle_in_seconds(), :second)
+
+    Repo.exists?(
+      from t in PasswordResetToken, where: t.user_id == ^user_id and t.inserted_at > ^since
+    )
+  end
+
+  @doc """
+  Whether a (URL-encoded) reset token can still be used: `false` if it is
+  malformed, unknown, used or expired.
+  """
+  def valid_reset_token?(token) when is_binary(token) do
+    reset_token_user_id(token) != nil
+  end
+
+  # The id of the user a valid reset token belongs to, or `nil`. The foreign key
+  # cascades on erasure, so a token row always has its user.
+  defp reset_token_user_id(token) do
+    with {:ok, token_hash} <- PasswordResetToken.hash_encoded(token) do
+      now = DateTime.utc_now()
+
+      Repo.one(
+        from t in PasswordResetToken,
+          where: t.token_hash == ^token_hash and t.expires_at > ^now,
+          select: t.user_id
+      )
+    else
+      :error -> nil
+    end
+  end
+
+  @doc "A changeset for the new-password form, for use with `to_form/2`."
+  def change_password_reset(attrs \\ %{}) do
+    ResetUserPassword.changeset(attrs)
+  end
+
+  @doc """
+  Set a new password through a (URL-encoded) reset token. Does not log the user
+  in.
+
+  The input is validated before the token is touched, so a typo keeps the link
+  usable. The token is then consumed with a single delete, so of two concurrent
+  submits only one gets through; a dispatch failure after that point means the
+  user has to request a new link.
+
+  Returns `:ok` on success, or:
+  - `{:error, :invalid_token}` when the token is malformed, unknown, used or
+    expired
+  - `{:error, %Ecto.Changeset{}}` when the input is invalid
+  - `{:error, :projection_timeout}` if the read model does not catch up in time
+  - `{:error, reason}` for dispatch failures
+  """
+  def reset_password(token, attrs) when is_binary(token) and is_map(attrs) do
+    with user_id when is_binary(user_id) <- reset_token_user_id(token) || {:error, :invalid_token},
+         {:ok, %ResetUserPassword{} = command} <- ResetUserPassword.new(user_id, attrs),
+         :ok <- consume_reset_token(token, user_id),
+         :ok <- App.dispatch(command),
+         {:ok, _user} <-
+           Projection.await(User, user_id,
+             match: &(&1.hashed_password == command.hashed_password)
+           ) do
+      :ok
+    end
+  end
+
+  defp consume_reset_token(token, user_id) do
+    {:ok, token_hash} = PasswordResetToken.hash_encoded(token)
+    now = DateTime.utc_now()
+
+    case Repo.delete_all(
+           from t in PasswordResetToken,
+             where: t.token_hash == ^token_hash and t.expires_at > ^now
+         ) do
+      {1, _} ->
+        Repo.delete_all(from t in PasswordResetToken, where: t.user_id == ^user_id)
+        :ok
+
+      {0, _} ->
+        {:error, :invalid_token}
     end
   end
 

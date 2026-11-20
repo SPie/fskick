@@ -5,6 +5,7 @@ defmodule Fskick.Users.Projectors.UserTest do
   alias Fskick.Users.Events.UserDataDeleted
   alias Fskick.Users.Events.UserEmailChanged
   alias Fskick.Users.Events.UserPasswordChanged
+  alias Fskick.Users.Events.UserPasswordReset
   alias Fskick.Users.Events.UserRegistered
   alias Fskick.Users.Projectors.User, as: Projector
   alias Fskick.Users.User
@@ -26,6 +27,15 @@ defmodule Fskick.Users.Projectors.UserTest do
       assert :ok = project(%UserPasswordChanged{user_id: id, hashed_password: "new hash"}, 2)
 
       assert %User{hashed_password: "new hash"} = Repo.get(User, id)
+    end
+
+    test "UserPasswordReset updates the password hash" do
+      id = Ecto.UUID.generate()
+
+      assert :ok = project(registered(id), 1)
+      assert :ok = project(%UserPasswordReset{user_id: id, hashed_password: "reset hash"}, 2)
+
+      assert %User{hashed_password: "reset hash"} = Repo.get(User, id)
     end
   end
 
