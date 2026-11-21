@@ -35,6 +35,31 @@ defmodule Fskick.PlayersTest do
       assert {:error, %Ecto.Changeset{}} = Players.create_player("")
       assert {:error, %Ecto.Changeset{}} = Players.create_player("   ")
     end
+
+    test "rejects names longer than 50 characters" do
+      assert {:ok, _} = Players.create_player(String.duplicate("a", 50))
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Players.create_player(String.duplicate("a", 51))
+
+      assert "should be at most 50 character(s)" in errors_on(changeset).name
+    end
+  end
+
+  describe "change_new_player/1" do
+    test "is valid for an available name" do
+      assert Players.change_new_player(%{"name" => "Alice"}).valid?
+    end
+
+    test "reports a blank name" do
+      assert "can't be blank" in errors_on(Players.change_new_player(%{"name" => " "})).name
+    end
+
+    test "reports a taken name" do
+      assert {:ok, _} = Players.create_player("Alice")
+      changeset = Players.change_new_player(%{"name" => "Alice"})
+      assert "has already been taken" in errors_on(changeset).name
+    end
   end
 
   describe "favorite_team/2" do

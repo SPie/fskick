@@ -23,6 +23,14 @@ defmodule FskickWeb.Router do
     post "/users/log-in", UserSessionController, :create
     delete "/users/log-out", UserSessionController, :delete
 
+    # Write-side pages. Any logged-in user may manage data for now; restricting
+    # this later means changing only this on_mount. Declared before
+    # :current_user so "/players/new" is not swallowed by "/players/:id".
+    live_session :manage,
+      on_mount: [{FskickWeb.UserAuth, :require_authenticated_user}] do
+      live "/players/new", PlayerNewLive, :new
+    end
+
     live_session :current_user,
       on_mount: [{FskickWeb.UserAuth, :mount_current_scope}] do
       live "/", HomeLive, :home

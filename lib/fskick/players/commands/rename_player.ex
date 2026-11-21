@@ -31,6 +31,7 @@ defmodule Fskick.Players.Commands.RenamePlayer do
     |> cast(attrs, [:player_id, :name])
     |> update_change(:name, &trim/1)
     |> validate_required([:player_id, :name])
+    |> validate_length(:name, max: 50)
     |> validate_name_available()
     |> apply_action(:insert)
   end
