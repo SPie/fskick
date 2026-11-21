@@ -33,6 +33,14 @@ defmodule Fskick.UsersTest do
       assert [%PlayerRenamed{name: "Bob"}] = change_events(user)
     end
 
+    test "rejects a player name longer than 50 characters", %{user: user} do
+      params = profile_params(%{"player_name" => String.duplicate("a", 51)})
+
+      assert {:error, %Ecto.Changeset{} = changeset} = Users.update_profile(user, params)
+      assert "should be at most 50 character(s)" in errors_on(changeset).player_name
+      assert [] = change_events(user)
+    end
+
     test "changes the password", %{user: user} do
       assert {:ok, %User{}} = Users.update_profile(user, profile_params(password_params()))
 

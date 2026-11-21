@@ -26,13 +26,23 @@ defmodule Fskick.Players.Commands.CreatePlayer do
   Returns `{:ok, command}` or `{:error, changeset}`.
   """
   def new(attrs) do
+    attrs
+    |> changeset()
+    |> validate_required([:player_id])
+    |> apply_action(:insert)
+  end
+
+  @doc """
+  The name rules alone, without the server-generated `player_id`, so a form
+  can validate input before anything is dispatched.
+  """
+  def changeset(attrs) do
     %__MODULE__{}
     |> cast(attrs, [:player_id, :name])
     |> update_change(:name, &trim/1)
-    |> validate_required([:player_id, :name])
-    |> validate_length(:name, min: 1)
+    |> validate_required([:name])
+    |> validate_length(:name, min: 1, max: 50)
     |> validate_name_available()
-    |> apply_action(:insert)
   end
 
   defp validate_name_available(%Ecto.Changeset{valid?: false} = changeset), do: changeset

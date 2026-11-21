@@ -29,7 +29,16 @@ defmodule FskickWeb.PlayersLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <h2 class="text-center text-md md:text-2xl font-bold">Players</h2>
+      <div class="relative flex items-center justify-center">
+        <h2 class="text-center text-md md:text-2xl font-bold">Players</h2>
+        <%= if @current_scope do %>
+          <div class="absolute right-0">
+            <.button id="new-player" variant="link" navigate={~p"/players/new"}>
+              <.icon name="hero-plus" class="size-4" /> New player
+            </.button>
+          </div>
+        <% end %>
+      </div>
       <div>
         <.player_stats_table
           stats={@stats}
