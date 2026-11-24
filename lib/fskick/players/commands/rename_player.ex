@@ -2,18 +2,17 @@ defmodule Fskick.Players.Commands.RenamePlayer do
   @moduledoc """
   Command to rename a player.
 
-  Structural validation lives here: presence, trimming and name availability
-  (checked against the read model, ignoring the player's own row).
+  Structural validation lives here; the name rules are shared with
+  `CreatePlayer` through `Fskick.Players.PlayerName`, which ignores the
+  player's own row when checking availability.
   State-dependent invariants (the player must exist) live in the aggregate.
   """
 
   use Ecto.Schema
 
   import Ecto.Changeset
-  import Ecto.Query, only: [from: 2]
 
-  alias Fskick.Players.Player
-  alias Fskick.Repo
+  alias Fskick.Players.PlayerName
 
   @primary_key false
   embedded_schema do
@@ -29,25 +28,8 @@ defmodule Fskick.Players.Commands.RenamePlayer do
   def new(attrs) do
     %__MODULE__{}
     |> cast(attrs, [:player_id, :name])
-    |> update_change(:name, &trim/1)
-    |> validate_required([:player_id, :name])
-    |> validate_name_available()
+    |> validate_required([:player_id])
+    |> PlayerName.validate()
     |> apply_action(:insert)
   end
-
-  defp validate_name_available(%Ecto.Changeset{valid?: false} = changeset), do: changeset
-
-  defp validate_name_available(changeset) do
-    player_id = get_change(changeset, :player_id)
-    name = get_change(changeset, :name)
-
-    if Repo.exists?(from p in Player, where: p.name == ^name and p.id != ^player_id) do
-      add_error(changeset, :name, "has already been taken")
-    else
-      changeset
-    end
-  end
-
-  defp trim(nil), do: nil
-  defp trim(value) when is_binary(value), do: String.trim(value)
 end

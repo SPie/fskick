@@ -38,6 +38,14 @@ defmodule Fskick.Players do
   end
 
   @doc """
+  Returns a changeset for the new-player form: checks the name (presence,
+  length, availability) without dispatching anything.
+  """
+  def change_new_player(attrs \\ %{}) do
+    CreatePlayer.changeset(attrs)
+  end
+
+  @doc """
   Wait until the read model shows the name from a dispatched `%RenamePlayer{}`.
 
   Returns `{:ok, %Player{}}`, or `{:error, :projection_timeout}` if the read
